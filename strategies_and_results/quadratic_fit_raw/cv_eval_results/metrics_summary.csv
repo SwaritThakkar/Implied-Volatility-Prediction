@@ -1,0 +1,2 @@
+n,mse,rmse,mae,median_abs_error,bias_mean_error,error_std,max_abs_error,p90_abs_error,p95_abs_error,p99_abs_error,n_unscored_bad_rows,prediction_file,truth_file,base_file
+2621,0.0006766521376075005,0.026012538084691016,0.005987163629189183,0.0007760959086954983,0.0005446985746007766,0.02600683450692007,0.5500356575390549,0.01096619559377121,0.02439563157894653,0.09021172749800442,0,cv_split/best_filled.csv,cv_split/holdout_truth.csv,cv_split/not_dataset.csv

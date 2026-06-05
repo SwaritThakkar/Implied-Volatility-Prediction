@@ -1,0 +1,2 @@
+n,mse,rmse,mae,median_abs_error,bias_mean_error,error_std,max_abs_error,p90_abs_error,p95_abs_error,p99_abs_error,n_unscored_bad_rows,prediction_file,truth_file,base_file
+2621,0.00163279686526869,0.0404078812271652,0.006398810618880605,0.0010316504071637006,-0.00038800793334249276,0.04040601830312352,1.9171094685649561,0.0157426268539802,0.028856550216811994,0.07217375752684448,0,filled_dataset_hybrid_expiry_trend.csv,cv_split/holdout_truth.csv,cv_split/not_dataset.csv
