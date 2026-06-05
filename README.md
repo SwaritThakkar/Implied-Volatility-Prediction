@@ -68,9 +68,9 @@ The model treats each timestamp as an implied-volatility smile. For a missing op
 
 The model works in moneyness:
 
-$$
+```math
 x = \frac{K}{S}
-$$
+```
 
 where `K` is strike and `S` is the underlying price.
 
@@ -111,39 +111,39 @@ For an interior missing value, the model uses only the same row and same option 
 
 The observed smile points are:
 
-$$
+```math
 (x_i, y_i), \qquad x_i = \frac{K_i}{S}
-$$
+```
 
 where `y_i` is observed IV at strike `K_i`.
 
 For target moneyness `x_0`, the local quadratic model is:
 
-$$
+```math
 y_i \approx \beta_0 + \beta_1(x_i - x_0) + \beta_2(x_i - x_0)^2
-$$
+```
 
 The prediction is:
 
-$$
+```math
 \hat{y}(x_0) = \beta_0
-$$
+```
 
 because at the target point:
 
-$$
+```math
 x_i - x_0 = 0
-$$
+```
 
 Nearby strikes receive more weight:
 
-$$
+```math
 w_i = \exp\left(-\frac{(x_i - x_0)^2}{2h}\right)
-$$
+```
 
 The weighted least-squares problem is:
 
-$$
+```math
 \hat{\beta}
 =
 \arg\min_{\beta}
@@ -152,19 +152,19 @@ w_i
 \left(
 y_i - X_i\beta
 \right)^2
-$$
+```
 
 This gives the normal equation:
 
-$$
+```math
 (X^\top W X)\hat{\beta}
 =
 X^\top W y
-$$
+```
 
 The bandwidth `h` controls locality. The script chooses `h` by leave-one-out validation over:
 
-$$
+```math
 h
 \in
 \left\{
@@ -174,11 +174,11 @@ h
 1.5\cdot10^{-4},
 2\cdot10^{-4}
 \right\}
-$$
+```
 
 For each candidate bandwidth:
 
-$$
+```math
 \mathrm{MSE}(h)
 =
 \frac{1}{n}
@@ -186,28 +186,28 @@ $$
 \left(
 \hat{y}_{-i}(x_i;h) - y_i
 \right)^2
-$$
+```
 
 Then it selects:
 
-$$
+```math
 h^\star
 =
 \arg\min_h
 \mathrm{MSE}(h)
-$$
+```
 
 After local WLS, the model tries shape-preserving PCHIP interpolation. PCHIP is used only when the target lies inside the observed range, never for extrapolation.
 
 The final interior prediction is:
 
-$$
+```math
 \hat{y}_{\mathrm{interior}}
 =
 0.75\,\hat{y}_{\mathrm{WLS}}
 +
 0.25\,\hat{y}_{\mathrm{PCHIP}}
-$$
+```
 
 In the full run, all `4,491` non-edge fills used this PCHIP blend.
 
@@ -237,13 +237,13 @@ quadratic : local wing neighborhood with degree selected by LOO
 
 For edges, the model searches both degree and bandwidth:
 
-$$
+```math
 d
 \in
 \{1,2\}
-$$
+```
 
-$$
+```math
 h
 \in
 \left\{
@@ -253,11 +253,11 @@ h
 1.5\cdot10^{-4},
 2\cdot10^{-4}
 \right\}
-$$
+```
 
 For every candidate pair `(d, h)`, it computes the leave-one-out error:
 
-$$
+```math
 \mathrm{LOO\_MSE}(d,h)
 =
 \frac{1}{n}
@@ -265,20 +265,20 @@ $$
 \left(
 \hat{y}_{-i}(x_i;d,h) - y_i
 \right)^2
-$$
+```
 
 Then it selects:
 
-$$
+```math
 (d^\star,h^\star)
 =
 \arg\min_{d,h}
 \mathrm{LOO\_MSE}(d,h)
-$$
+```
 
 The final edge ensemble is:
 
-$$
+```math
 \hat{y}_{\mathrm{edge}}
 =
 0.72\,\hat{y}_{\mathrm{primary}}
@@ -286,7 +286,7 @@ $$
 0.14\,\hat{y}_{\mathrm{corrected}}
 +
 0.14\,\hat{y}_{\mathrm{quadratic}}
-$$
+```
 
 ## 5. Progressive Edge Filling
 
