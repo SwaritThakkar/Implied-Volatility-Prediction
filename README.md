@@ -58,18 +58,21 @@ That split is the main design decision.
 
 ## Final Filled IV Surfaces
 
-These plots are generated from the final filled dataset. The surface is built with SciPy interpolation over `(timestamp index, moneyness)` and rendered as a composite: a 3D surface, a top-down IV heatmap, and selected smile slices. The plotting scale clips only the top and bottom 1 percent of IV values for visibility, so the shape of the surface is visible instead of being flattened by expiry-day extremes.
+These plots are generated from the final filled dataset. The surface is built with SciPy interpolation over `(days to expiry, strike)`, which gives a clean rectangular volatility surface and shows the curvature of the call and put smiles more clearly. The plotting scale clips only the most extreme IV values for visibility, so the surface shape is readable instead of being dominated by expiry-day spikes.
 
 Interactive Plotly versions are also generated:
 
 ```text
 for_generating_readme/iv_surface_ce_3d.html
 for_generating_readme/iv_surface_pe_3d.html
+for_generating_readme/iv_surface_combined_3d.html
 ```
 
 ![Final CE IV surface](for_generating_readme/iv_surface_ce_3d.png)
 
 ![Final PE IV surface](for_generating_readme/iv_surface_pe_3d.png)
+
+![Combined CE and PE IV surfaces](for_generating_readme/iv_surface_combined_3d.png)
 
 The late jump in both surfaces is the important visual feature: near expiry, IV moves sharply and the smile wings become much harder to extrapolate. This is why I did not settle for one global quadratic curve or a single smooth time model.
 
@@ -174,27 +177,27 @@ PE MSE : 0.000130
 
 Important evaluator plots:
 
-![Predicted vs actual](for_generating_readme/cv_eval_final_submission/plots/predicted_vs_actual.png)
+![Predicted vs actual](for_generating_readme/cv_predicted_vs_actual_theme.png)
 
-![Error histogram](for_generating_readme/cv_eval_final_submission/plots/error_histogram.png)
+![Error histogram](for_generating_readme/cv_error_histogram_theme.png)
 
-![Absolute error over time](for_generating_readme/cv_eval_final_submission/plots/abs_error_over_time.png)
+![Absolute error over time](for_generating_readme/cv_abs_error_over_time_theme.png)
 
-![Absolute error vs moneyness](for_generating_readme/cv_eval_final_submission/plots/abs_error_vs_moneyness.png)
+![Absolute error vs moneyness](for_generating_readme/cv_abs_error_vs_moneyness_theme.png)
 
-![MSE by regime](for_generating_readme/cv_eval_final_submission/plots/mse_by_regime.png)
+![MSE by regime](for_generating_readme/cv_mse_by_regime_theme.png)
 
-![MSE by option type](for_generating_readme/cv_eval_final_submission/plots/mse_by_option_type.png)
+![MSE by option type](for_generating_readme/cv_mse_by_option_type_theme.png)
 
 The evaluator also generates heatmaps. These are useful because they show whether errors are concentrated by time, moneyness, option type, or regime.
 
-![Binned absolute error heatmap](for_generating_readme/cv_eval_final_submission/plots/error_heatmaps/binned_abs_error_all.png)
+![Binned absolute error heatmap](for_generating_readme/cv_abs_error_heatmap_theme.png)
 
-![Signed error heatmap](for_generating_readme/cv_eval_final_submission/plots/error_heatmaps/binned_signed_error_all.png)
+![Signed error heatmap](for_generating_readme/cv_signed_error_heatmap_theme.png)
 
 One of the top-error smile plots is shown below. The point of these plots is to inspect whether the model failed because the whole smile shifted, because one wing moved, or because the local observed context was thin.
 
-![Top-error smile example](for_generating_readme/cv_eval_final_submission/plots/smile_by_timestamp_top_errors/rank_001_row_972_27-01-2026_15_15_CE_mse_1.38e-02.png)
+![Top-error smile example](for_generating_readme/cv_top_error_smile_theme.png)
 
 ## Missingness Pattern
 

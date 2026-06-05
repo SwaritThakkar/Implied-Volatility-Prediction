@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.colors import Normalize
 from scipy.interpolate import griddata, PchipInterpolator
+from scipy.ndimage import gaussian_filter
 import plotly.graph_objects as go
 
 
@@ -46,7 +47,9 @@ def option_columns(df):
 
 
 def parse_contract(col):
-    m = re.search(r"(\d+)(CE|PE)$", col)
+    m = re.match(r"^[A-Z]+\d{2}[A-Z]{3}\d{2}(\d+)(CE|PE)$", col)
+    if not m:
+        m = re.search(r"(\d+)(CE|PE)$", col)
     if not m:
         return None
     return int(m.group(1)), m.group(2)
@@ -62,6 +65,8 @@ def load_first(paths):
 def prepare_long(df, opt_type):
     rows = []
     dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M", errors="coerce")
+    expiry = pd.Timestamp("2026-01-27 15:30")
+    days_to_expiry = (expiry - dt) / pd.Timedelta(days=1)
     for col in option_columns(df):
         parsed = parse_contract(col)
         if parsed is None:
@@ -73,6 +78,7 @@ def prepare_long(df, opt_type):
         rows.append(pd.DataFrame({
             "datetime": dt,
             "time_index": np.arange(len(df)),
+            "days_to_expiry": days_to_expiry,
             "strike": strike,
             "moneyness": x,
             "iv": df[col].to_numpy(float),
@@ -81,28 +87,45 @@ def prepare_long(df, opt_type):
     return pd.concat(rows, ignore_index=True)
 
 
-def save_surface(df, opt_type, filename, title):
+def surface_grid(df, opt_type):
     long = prepare_long(df, opt_type)
     long = long[np.isfinite(long["iv"]) & np.isfinite(long["moneyness"])].copy()
-    lo, hi = long["iv"].quantile([0.01, 0.99])
+    long = long[long["days_to_expiry"] >= 0].copy()
+    lo, hi = long["iv"].quantile([0.005, 0.985])
     long["iv_plot"] = long["iv"].clip(lo, hi)
 
-    t_min, t_max = long["time_index"].min(), long["time_index"].max()
-    m_min, m_max = long["moneyness"].quantile([0.002, 0.998])
-    grid_t = np.linspace(t_min, t_max, 180)
-    grid_m = np.linspace(m_min, m_max, 90)
-    T, M = np.meshgrid(grid_t, grid_m)
-    pts = long[["time_index", "moneyness"]].to_numpy(float)
+    d_min, d_max = long["days_to_expiry"].quantile([0.002, 0.998])
+    s_min, s_max = long["strike"].min(), long["strike"].max()
+    grid_d = np.linspace(float(d_max), float(d_min), 170)
+    grid_s = np.linspace(float(s_min), float(s_max), 120)
+    D, S = np.meshgrid(grid_d, grid_s)
+    pts = long[["days_to_expiry", "strike"]].to_numpy(float)
     vals = long["iv_plot"].to_numpy(float)
-    Z = griddata(pts, vals, (T, M), method="linear")
-    nearest = griddata(pts, vals, (T, M), method="nearest")
+    Z = griddata(pts, vals, (D, S), method="linear")
+    nearest = griddata(pts, vals, (D, S), method="nearest")
     Z = np.where(np.isfinite(Z), Z, nearest)
+    Z = gaussian_filter(Z, sigma=(1.2, 1.2))
+    Z = np.clip(Z, lo, hi)
+    return long, D, S, Z, (lo, hi)
+
+
+def style_3d_axis(ax):
+    ax.set_facecolor("#050812")
+    ax.tick_params(colors="#d8e1ff", labelsize=8)
+    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+        axis.pane.set_facecolor((0.04, 0.06, 0.12, 0.95))
+        axis.pane.set_edgecolor((0.52, 0.64, 0.9, 0.7))
+    ax.grid(True, color="#52617f", alpha=0.35)
+
+
+def save_surface(df, opt_type, filename, title):
+    long, D, S, Z, _ = surface_grid(df, opt_type)
 
     sample = long.iloc[::4].copy()
     fig = go.Figure()
     fig.add_trace(go.Surface(
-        x=T,
-        y=M,
+        x=D,
+        y=S,
         z=Z,
         colorscale="Turbo",
         opacity=0.96,
@@ -117,28 +140,14 @@ def save_surface(df, opt_type, filename, title):
         name="interpolated surface",
     ))
     fig.add_trace(go.Scatter3d(
-        x=sample["time_index"],
-        y=sample["moneyness"],
+        x=sample["days_to_expiry"],
+        y=sample["strike"],
         z=sample["iv_plot"],
         mode="markers",
         marker={"size": 2.2, "color": sample["iv_plot"], "colorscale": "Turbo", "opacity": 0.55},
         name="filled contracts",
         hovertemplate="t=%{x}<br>K/S=%{y:.4f}<br>IV=%{z:.4f}<extra></extra>",
     ))
-    for idx in np.linspace(t_min, t_max, 9, dtype=int):
-        g = long[np.abs(long["time_index"] - idx) <= 2].groupby("moneyness", as_index=False)["iv_plot"].median()
-        if len(g) >= 4:
-            fig.add_trace(go.Scatter3d(
-                x=np.full(len(g), idx),
-                y=g["moneyness"],
-                z=g["iv_plot"],
-                mode="lines",
-                line={"color": "white", "width": 5},
-                opacity=0.62,
-                showlegend=False,
-                hoverinfo="skip",
-            ))
-
     fig.update_layout(
         title={"text": title, "x": 0.5, "font": {"size": 30, "color": "white"}},
         template="plotly_dark",
@@ -147,101 +156,100 @@ def save_surface(df, opt_type, filename, title):
         margin={"l": 0, "r": 0, "t": 80, "b": 0},
         paper_bgcolor="#050812",
         scene={
-            "xaxis": {"title": "timestamp index", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
-            "yaxis": {"title": "moneyness K/S", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
+            "xaxis": {"title": "days to expiry", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
+            "yaxis": {"title": "strike", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
             "zaxis": {"title": "IV, clipped to 1st-99th pct", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
-            "camera": {"eye": {"x": 1.65, "y": -1.72, "z": 0.92}, "center": {"x": 0.02, "y": 0.0, "z": -0.08}},
-            "aspectratio": {"x": 2.35, "y": 1.0, "z": 0.72},
+            "camera": {"eye": {"x": 1.6, "y": -1.55, "z": 0.9}, "center": {"x": 0.03, "y": 0.0, "z": -0.08}},
+            "aspectratio": {"x": 1.9, "y": 1.0, "z": 0.78},
         },
         legend={"font": {"color": "#d8e1ff"}},
     )
     html_name = filename.replace(".png", ".html")
     fig.write_html(OUT / html_name, include_plotlyjs="cdn", full_html=True)
 
-    static = plt.figure(figsize=(18, 10.5), dpi=190)
+    static = plt.figure(figsize=(13, 9.2), dpi=220)
     static.patch.set_facecolor("#050812")
-    gs = static.add_gridspec(2, 3, width_ratios=[1.55, 1.0, 1.0], height_ratios=[1.0, 0.78])
-    ax3d = static.add_subplot(gs[:, 0], projection="3d")
-    axh = static.add_subplot(gs[0, 1:])
-    axs = static.add_subplot(gs[1, 1:])
-
-    ax3d.set_facecolor("#050812")
+    ax3d = static.add_subplot(111, projection="3d")
+    style_3d_axis(ax3d)
     surf = ax3d.plot_surface(
-        T, M, Z,
+        D, S, Z,
         cmap="turbo",
-        linewidth=0,
+        linewidth=0.18,
+        edgecolor=(0.02, 0.04, 0.08, 0.32),
         antialiased=True,
         alpha=0.98,
         rstride=1,
         cstride=1,
         shade=True,
     )
-    ax3d.contour(T, M, Z, zdir="z", offset=float(np.nanmin(Z)), levels=12, cmap="turbo", alpha=0.55, linewidths=0.7)
-    ax3d.scatter(sample["time_index"], sample["moneyness"], sample["iv_plot"], c="#ffffff", s=4, alpha=0.16, depthshade=False)
-    ax3d.view_init(elev=31, azim=-124)
-    ax3d.set_box_aspect((2.3, 1.0, 0.88))
+    z_floor = float(np.nanmin(Z)) - 0.04 * (float(np.nanmax(Z)) - float(np.nanmin(Z)))
+    ax3d.contour(D, S, Z, zdir="z", offset=z_floor, levels=18, cmap="turbo", alpha=0.66, linewidths=0.8)
+    ax3d.contour(D, S, Z, zdir="x", offset=float(np.nanmax(D)), levels=12, cmap="turbo", alpha=0.32, linewidths=0.55)
+    ax3d.view_init(elev=29, azim=-132)
+    ax3d.set_box_aspect((1.9, 1.0, 0.78))
     ax3d.set_title(title, color="white", fontsize=19, weight="bold", pad=14)
-    ax3d.set_xlabel("time index", color="#d8e1ff", labelpad=10)
-    ax3d.set_ylabel("moneyness K/S", color="#d8e1ff", labelpad=10)
+    ax3d.set_xlabel("days to expiry", color="#d8e1ff", labelpad=10)
+    ax3d.set_ylabel("strike", color="#d8e1ff", labelpad=10)
     ax3d.set_zlabel("IV", color="#d8e1ff", labelpad=10)
-    ax3d.tick_params(colors="#d8e1ff", labelsize=8)
-    ax3d.set_xlim(t_min, t_max)
-    ax3d.set_ylim(m_min, m_max)
-    ax3d.set_zlim(float(np.nanmin(Z)), float(np.nanmax(Z)))
-    for axis in [ax3d.xaxis, ax3d.yaxis, ax3d.zaxis]:
-        axis.pane.set_facecolor((0.04, 0.06, 0.12, 0.92))
-        axis.pane.set_edgecolor((0.52, 0.64, 0.9, 0.7))
-    ax3d.grid(True, color="#52617f", alpha=0.35)
-
-    axh.set_facecolor("#07101f")
-    heat = axh.imshow(
-        Z,
-        origin="lower",
-        aspect="auto",
-        cmap="turbo",
-        extent=[t_min, t_max, m_min, m_max],
-        interpolation="bicubic",
-    )
-    axh.set_title("top-down IV heatmap", color="white", weight="bold", fontsize=14)
-    axh.set_xlabel("time index", color="#d8e1ff")
-    axh.set_ylabel("moneyness K/S", color="#d8e1ff")
-    axh.tick_params(colors="#d8e1ff")
-    for spine in axh.spines.values():
-        spine.set_color("#34415f")
-
-    axs.set_facecolor("#07101f")
-    slice_indices = [0, len(df) // 3, 2 * len(df) // 3, len(df) - 1]
-    colors2 = ["#38bdf8", "#a78bfa", "#f8c14a", "#fb7185"]
-    for idx, color in zip(slice_indices, colors2):
-        g = long[np.abs(long["time_index"] - idx) <= 1].sort_values("moneyness")
-        if len(g) < 4:
-            continue
-        xg = g["moneyness"].to_numpy(float)
-        yg = g["iv_plot"].to_numpy(float)
-        ux, ix = np.unique(xg, return_index=True)
-        uy = yg[ix]
-        dense = np.linspace(ux.min(), ux.max(), 200)
-        try:
-            smooth = PchipInterpolator(ux, uy)(dense)
-            axs.plot(dense, smooth, color=color, lw=2.6, label=df.loc[idx, "datetime"])
-        except Exception:
-            axs.plot(ux, uy, color=color, lw=2.6, label=df.loc[idx, "datetime"])
-    axs.set_title("selected fitted smile slices", color="white", weight="bold", fontsize=14)
-    axs.set_xlabel("moneyness K/S", color="#d8e1ff")
-    axs.set_ylabel("IV", color="#d8e1ff")
-    axs.tick_params(colors="#d8e1ff")
-    axs.grid(color="#253149", alpha=0.6)
-    axs.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white", fontsize=8, ncol=2)
-    for spine in axs.spines.values():
-        spine.set_color("#34415f")
-
-    cax = static.add_axes([0.925, 0.18, 0.014, 0.64])
+    ax3d.set_zlim(z_floor, float(np.nanmax(Z)))
+    ax3d.invert_xaxis()
+    cax = static.add_axes([0.88, 0.22, 0.018, 0.55])
     cbar = static.colorbar(surf, cax=cax)
     cbar.ax.tick_params(colors="#d8e1ff")
     cbar.set_label("IV, clipped to 1st-99th pct", color="#d8e1ff")
-    static.subplots_adjust(left=0.035, right=0.895, top=0.93, bottom=0.08, wspace=0.32, hspace=0.34)
+    static.subplots_adjust(left=0.0, right=0.86, top=0.94, bottom=0.02)
     static.savefig(OUT / filename, facecolor=static.get_facecolor(), bbox_inches="tight")
     plt.close(static)
+
+
+def save_combined_surface(df):
+    long_ce, D_ce, S_ce, Z_ce, _ = surface_grid(df, "CE")
+    long_pe, D_pe, S_pe, Z_pe, _ = surface_grid(df, "PE")
+
+    fig = go.Figure()
+    fig.add_trace(go.Surface(x=D_ce, y=S_ce, z=Z_ce, colorscale="Blues", opacity=0.92, name="CE surface", showscale=False))
+    fig.add_trace(go.Surface(x=D_pe, y=S_pe, z=Z_pe, colorscale="Reds", opacity=0.82, name="PE surface", showscale=True, colorbar={"title": "IV"}))
+    fig.update_layout(
+        title={"text": "combined CE and PE implied-volatility surfaces", "x": 0.5, "font": {"size": 30, "color": "white"}},
+        template="plotly_dark",
+        width=1700,
+        height=1100,
+        margin={"l": 0, "r": 0, "t": 80, "b": 0},
+        paper_bgcolor="#050812",
+        scene={
+            "xaxis": {"title": "days to expiry", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
+            "yaxis": {"title": "strike", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
+            "zaxis": {"title": "IV", "gridcolor": "#3a4766", "backgroundcolor": "#07101f", "color": "#d8e1ff"},
+            "camera": {"eye": {"x": 1.65, "y": -1.55, "z": 0.9}},
+            "aspectratio": {"x": 1.9, "y": 1.0, "z": 0.78},
+        },
+    )
+    fig.write_html(OUT / "iv_surface_combined_3d.html", include_plotlyjs="cdn", full_html=True)
+
+    fig2 = plt.figure(figsize=(13.2, 9.4), dpi=220)
+    fig2.patch.set_facecolor("#050812")
+    ax = fig2.add_subplot(111, projection="3d")
+    style_3d_axis(ax)
+    z_min = min(float(np.nanmin(Z_ce)), float(np.nanmin(Z_pe)))
+    z_max = max(float(np.nanmax(Z_ce)), float(np.nanmax(Z_pe)))
+    z_floor = z_min - 0.04 * (z_max - z_min)
+    ax.plot_surface(D_ce, S_ce, Z_ce, cmap="winter", linewidth=0.14, edgecolor=(0.02, 0.04, 0.08, 0.26), alpha=0.92, antialiased=True)
+    ax.plot_surface(D_pe, S_pe, Z_pe, cmap="autumn", linewidth=0.14, edgecolor=(0.02, 0.04, 0.08, 0.26), alpha=0.82, antialiased=True)
+    ax.contour(D_ce, S_ce, Z_ce, zdir="z", offset=z_floor, levels=16, cmap="winter", alpha=0.52, linewidths=0.7)
+    ax.contour(D_pe, S_pe, Z_pe, zdir="z", offset=z_floor, levels=16, cmap="autumn", alpha=0.45, linewidths=0.7)
+    ax.view_init(elev=29, azim=-132)
+    ax.set_box_aspect((1.9, 1.0, 0.78))
+    ax.set_title("combined CE and PE implied-volatility surfaces", color="white", fontsize=19, weight="bold", pad=14)
+    ax.set_xlabel("days to expiry", color="#d8e1ff", labelpad=10)
+    ax.set_ylabel("strike", color="#d8e1ff", labelpad=10)
+    ax.set_zlabel("IV", color="#d8e1ff", labelpad=10)
+    ax.set_zlim(z_floor, z_max)
+    ax.invert_xaxis()
+    ax.text2D(0.06, 0.90, "CE surface", transform=ax.transAxes, color="#38bdf8", fontsize=13, weight="bold")
+    ax.text2D(0.06, 0.855, "PE surface", transform=ax.transAxes, color="#fb7185", fontsize=13, weight="bold")
+    fig2.subplots_adjust(left=0.0, right=0.98, top=0.94, bottom=0.02)
+    fig2.savefig(OUT / "iv_surface_combined_3d.png", facecolor=fig2.get_facecolor(), bbox_inches="tight")
+    plt.close(fig2)
 
 
 def save_missingness(original, not_dataset):
@@ -448,6 +456,187 @@ def save_cv_metric_cards():
     plt.close(fig)
 
 
+def style_axis(ax):
+    ax.set_facecolor("#0f1724")
+    ax.tick_params(colors="#d8e1ff")
+    ax.grid(color="#253149", alpha=0.55)
+    for spine in ax.spines.values():
+        spine.set_color("#34415f")
+
+
+def save_themed_cv_plots():
+    cv_dir = OUT / "cv_eval_final_submission"
+    errors_path = cv_dir / "error_rows.csv"
+    if not errors_path.exists():
+        return
+
+    errors = pd.read_csv(errors_path)
+    ce_color = "#00d4ff"
+    pe_color = "#ff4d6d"
+    gold = "#f8c14a"
+    green = "#6ee7b7"
+
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    style_axis(ax)
+    for typ, color in [("CE", ce_color), ("PE", pe_color)]:
+        sub = errors[errors["option_type"] == typ]
+        ax.scatter(sub["actual_iv"], sub["predicted_iv"], s=18, alpha=0.62, color=color, label=typ, edgecolors="none")
+    lo = min(errors["actual_iv"].min(), errors["predicted_iv"].min())
+    hi = max(errors["actual_iv"].max(), errors["predicted_iv"].max())
+    ax.plot([lo, hi], [lo, hi], color=gold, lw=2, linestyle="--", label="perfect prediction")
+    ax.set_title("synthetic CV: predicted vs actual IV", color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("actual IV", color="#d8e1ff")
+    ax.set_ylabel("predicted IV", color="#d8e1ff")
+    ax.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white")
+    fig.tight_layout()
+    fig.savefig(OUT / "cv_predicted_vs_actual_theme.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 5.8), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    style_axis(ax)
+    ax.hist(errors["error"], bins=70, color=ce_color, alpha=0.82)
+    ax.axvline(0, color=gold, lw=2, linestyle="--")
+    ax.set_title("synthetic CV: error distribution", color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("prediction error = predicted - actual", color="#d8e1ff")
+    ax.set_ylabel("count", color="#d8e1ff")
+    fig.tight_layout()
+    fig.savefig(OUT / "cv_error_histogram_theme.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(12, 5.8), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    style_axis(ax)
+    for typ, color in [("CE", ce_color), ("PE", pe_color)]:
+        sub = errors[errors["option_type"] == typ]
+        ax.scatter(sub["row_index"], sub["abs_error"], s=14, alpha=0.58, color=color, label=typ, edgecolors="none")
+    ax.set_title("synthetic CV: absolute error over time", color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("timestamp row index", color="#d8e1ff")
+    ax.set_ylabel("absolute error", color="#d8e1ff")
+    ax.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white")
+    fig.tight_layout()
+    fig.savefig(OUT / "cv_abs_error_over_time_theme.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 5.8), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    style_axis(ax)
+    for typ, color in [("CE", ce_color), ("PE", pe_color)]:
+        sub = errors[errors["option_type"] == typ]
+        ax.scatter(sub["moneyness"], sub["abs_error"], s=16, alpha=0.58, color=color, label=typ, edgecolors="none")
+    ax.set_title("synthetic CV: absolute error vs moneyness", color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("moneyness K/S", color="#d8e1ff")
+    ax.set_ylabel("absolute error", color="#d8e1ff")
+    ax.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white")
+    fig.tight_layout()
+    fig.savefig(OUT / "cv_abs_error_vs_moneyness_theme.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+    for group_file, label_col, out_name, title in [
+        ("group_metrics_by_regime.csv", "regime", "cv_mse_by_regime_theme.png", "synthetic CV: MSE by regime"),
+        ("group_metrics_by_option_type.csv", "option_type", "cv_mse_by_option_type_theme.png", "synthetic CV: MSE by option type"),
+    ]:
+        path = cv_dir / group_file
+        if not path.exists():
+            continue
+        gm = pd.read_csv(path).sort_values("mse", ascending=False)
+        fig, ax = plt.subplots(figsize=(8, 5.4), dpi=190)
+        fig.patch.set_facecolor("#0a0d14")
+        style_axis(ax)
+        colors = [pe_color if str(x).upper() == "PE" or str(x).lower() == "jan27" else ce_color for x in gm[label_col]]
+        ax.bar(gm[label_col].astype(str), gm["mse"], color=colors)
+        ax.set_title(title, color="white", fontsize=18, weight="bold")
+        ax.set_xlabel(label_col.replace("_", " "), color="#d8e1ff")
+        ax.set_ylabel("MSE", color="#d8e1ff")
+        fig.tight_layout()
+        fig.savefig(OUT / out_name, facecolor=fig.get_facecolor(), bbox_inches="tight")
+        plt.close(fig)
+
+    make_cv_heatmap(errors, "abs_error", "cv_abs_error_heatmap_theme.png", "synthetic CV: binned absolute error", cmap="mako")
+    make_cv_heatmap(errors, "error", "cv_signed_error_heatmap_theme.png", "synthetic CV: binned signed error", cmap="coolwarm", center=0.0)
+    save_themed_top_error_smile(errors)
+
+
+def make_cv_heatmap(errors, value_col, out_name, title, cmap="mako", center=None):
+    df = errors.copy()
+    df["time_bin"] = pd.cut(df["row_index"], bins=70, labels=False)
+    df["money_bin"] = pd.cut(df["moneyness"], bins=34, labels=False)
+    agg = df.pivot_table(index="money_bin", columns="time_bin", values=value_col, aggfunc="mean")
+    fig, ax = plt.subplots(figsize=(13, 6.2), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    ax.set_facecolor("#0f1724")
+    sns.heatmap(
+        agg,
+        cmap=cmap,
+        center=center,
+        ax=ax,
+        cbar_kws={"label": value_col.replace("_", " ")},
+    )
+    ax.invert_yaxis()
+    ax.set_title(title, color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("time bin", color="#d8e1ff")
+    ax.set_ylabel("moneyness bin", color="#d8e1ff")
+    ax.tick_params(colors="#d8e1ff", labelsize=7)
+    ax.collections[0].colorbar.ax.tick_params(colors="#d8e1ff")
+    ax.collections[0].colorbar.set_label(value_col.replace("_", " "), color="#d8e1ff")
+    fig.tight_layout()
+    fig.savefig(OUT / out_name, facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_themed_top_error_smile(errors):
+    pred_path = ROOT / "filled_dataset_readme_cv_final.csv"
+    not_dataset, _ = load_first(NOT_DATASET_PATHS)
+    if not pred_path.exists() or not_dataset is None:
+        return
+    pred = pd.read_csv(pred_path)
+    group = (
+        errors.groupby(["row_index", "option_type"], as_index=False)
+        .agg(mse=("sq_error", "mean"))
+        .sort_values("mse", ascending=False)
+        .iloc[0]
+    )
+    row_idx = int(group["row_index"])
+    opt_type = group["option_type"]
+    gerr = errors[(errors["row_index"] == row_idx) & (errors["option_type"] == opt_type)]
+    opts = [c for c in option_columns(pred) if parse_contract(c)[1] == opt_type]
+    opts = sorted(opts, key=lambda c: parse_contract(c)[0])
+    spot = pred.loc[row_idx, "underlying_price"]
+    x = np.array([parse_contract(c)[0] / spot for c in opts], float)
+    y = pred.loc[row_idx, opts].to_numpy(float)
+    avail = not_dataset.loc[row_idx, opts].notna().to_numpy(bool)
+    hidden_cols = set(gerr["contract"])
+    hidden = np.array([c in hidden_cols for c in opts], bool)
+    truth_map = dict(zip(gerr["contract"], gerr["actual_iv"]))
+    truth = np.array([truth_map.get(c, np.nan) for c in opts], float)
+
+    fig, ax = plt.subplots(figsize=(10.5, 6.2), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    style_axis(ax)
+    order = np.argsort(x)
+    x, y, avail, hidden, truth = x[order], y[order], avail[order], hidden[order], truth[order]
+    dense = np.linspace(x.min(), x.max(), 260)
+    try:
+        smooth = PchipInterpolator(x, y)(dense)
+        ax.plot(dense, smooth, color="#00d4ff" if opt_type == "CE" else "#ff4d6d", lw=3, label="filled smile")
+    except Exception:
+        ax.plot(x, y, color="#00d4ff" if opt_type == "CE" else "#ff4d6d", lw=3, label="filled smile")
+    ax.scatter(x[avail], y[avail], color="#00d4ff", s=34, edgecolor="#07101f", linewidth=0.5, label="available observations", zorder=3)
+    ax.scatter(x[hidden], y[hidden], color="#f8c14a", marker="D", s=70, edgecolor="black", linewidth=0.55, label="model prediction", zorder=4)
+    mask_truth = hidden & np.isfinite(truth)
+    ax.scatter(x[mask_truth], truth[mask_truth], color="white", marker="x", s=70, linewidth=2.0, label="hidden truth", zorder=5)
+    for xi, yp, yt in zip(x[mask_truth], y[mask_truth], truth[mask_truth]):
+        ax.plot([xi, xi], [yt, yp], color="#f8c14a", lw=1.25, alpha=0.75)
+    ax.set_title(f"top-error CV smile: {pred.loc[row_idx, 'datetime']} {opt_type}", color="white", fontsize=18, weight="bold")
+    ax.set_xlabel("moneyness K/S", color="#d8e1ff")
+    ax.set_ylabel("IV", color="#d8e1ff")
+    ax.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "cv_top_error_smile_theme.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     if not FILLED_PATH.exists():
         raise FileNotFoundError(f"Missing {FILLED_PATH}")
@@ -463,12 +652,14 @@ def main():
 
     save_surface(filled, "CE", "iv_surface_ce_3d.png", "final filled CE implied-volatility surface")
     save_surface(filled, "PE", "iv_surface_pe_3d.png", "final filled PE implied-volatility surface")
+    save_combined_surface(filled)
     save_missingness(original, not_dataset)
     save_decision_charts(diag)
     save_smile_examples(filled, original)
     save_error_surface(diag)
     save_cv_strategy_comparison()
     save_cv_metric_cards()
+    save_themed_cv_plots()
 
 
 if __name__ == "__main__":
