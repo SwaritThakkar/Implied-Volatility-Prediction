@@ -72,7 +72,7 @@ $$
 x = \frac{K}{S}
 $$
 
-where \(K\) is strike and \(S\) is the underlying price.
+where `K` is strike and `S` is the underlying price.
 
 Every missing cell is routed into one of two geometries:
 
@@ -115,56 +115,86 @@ $$
 (x_i, y_i), \qquad x_i = \frac{K_i}{S}
 $$
 
-where \(y_i\) is observed IV at strike \(K_i\).
+where `y_i` is observed IV at strike `K_i`.
 
-For target moneyness \(x_0\), the local quadratic model is:
+For target moneyness `x_0`, the local quadratic model is:
 
 $$
-y_i \approx \beta_0 + \beta_1(x_i-x_0) + \beta_2(x_i-x_0)^2
+y_i \approx \beta_0 + \beta_1(x_i - x_0) + \beta_2(x_i - x_0)^2
 $$
 
-The prediction is \(\hat{y}(x_0)=\beta_0\), because at the target point \(x_i-x_0=0\).
+The prediction is:
+
+$$
+\hat{y}(x_0) = \beta_0
+$$
+
+because at the target point:
+
+$$
+x_i - x_0 = 0
+$$
 
 Nearby strikes receive more weight:
 
 $$
-w_i = \exp\left(-\frac{(x_i-x_0)^2}{2h}\right)
+w_i = \exp\left(-\frac{(x_i - x_0)^2}{2h}\right)
 $$
 
 The weighted least-squares problem is:
 
 $$
 \hat{\beta}
-= \arg\min_{\beta}
-\sum_i w_i \left(y_i - X_i\beta\right)^2
+=
+\arg\min_{\beta}
+\sum_i
+w_i
+\left(
+y_i - X_i\beta
+\right)^2
 $$
 
-which gives the normal equation:
+This gives the normal equation:
 
 $$
-(X^\top W X)\hat{\beta} = X^\top W y
+(X^\top W X)\hat{\beta}
+=
+X^\top W y
 $$
 
-The bandwidth \(h\) controls locality. The script chooses \(h\) by leave-one-out validation over:
+The bandwidth `h` controls locality. The script chooses `h` by leave-one-out validation over:
 
 $$
-h \in \{5\cdot10^{-5},\ 7\cdot10^{-5},\ 10^{-4},\ 1.5\cdot10^{-4},\ 2\cdot10^{-4}\}
+h
+\in
+\left\{
+5\cdot10^{-5},
+7\cdot10^{-5},
+10^{-4},
+1.5\cdot10^{-4},
+2\cdot10^{-4}
+\right\}
 $$
 
-For each candidate:
+For each candidate bandwidth:
 
 $$
 \mathrm{MSE}(h)
 =
 \frac{1}{n}
 \sum_i
-\left(\hat{y}_{-i}(x_i;h)-y_i\right)^2
+\left(
+\hat{y}_{-i}(x_i;h) - y_i
+\right)^2
 $$
 
-and:
+Then it selects:
 
 $$
-h^\star = \arg\min_h \mathrm{MSE}(h)
+h^\star
+=
+\arg\min_h
+\mathrm{MSE}(h)
 $$
 
 After local WLS, the model tries shape-preserving PCHIP interpolation. PCHIP is used only when the target lies inside the observed range, never for extrapolation.
@@ -208,14 +238,24 @@ quadratic : local wing neighborhood with degree selected by LOO
 For edges, the model searches both degree and bandwidth:
 
 $$
-d \in \{1,2\}
+d
+\in
+\{1,2\}
 $$
 
 $$
-h \in \{5\cdot10^{-5},\ 7\cdot10^{-5},\ 10^{-4},\ 1.5\cdot10^{-4},\ 2\cdot10^{-4}\}
+h
+\in
+\left\{
+5\cdot10^{-5},
+7\cdot10^{-5},
+10^{-4},
+1.5\cdot10^{-4},
+2\cdot10^{-4}
+\right\}
 $$
 
-For every candidate pair \((d,h)\), it computes the leave-one-out error:
+For every candidate pair `(d, h)`, it computes the leave-one-out error:
 
 $$
 \mathrm{LOO\_MSE}(d,h)
@@ -223,11 +263,11 @@ $$
 \frac{1}{n}
 \sum_{i=1}^{n}
 \left(
-\hat{y}_{-i}(x_i;d,h)-y_i
+\hat{y}_{-i}(x_i;d,h) - y_i
 \right)^2
 $$
 
-and selects:
+Then it selects:
 
 $$
 (d^\star,h^\star)
