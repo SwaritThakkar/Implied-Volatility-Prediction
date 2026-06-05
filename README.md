@@ -15,7 +15,7 @@ submission_try_final_pchip_interior.csv
 Run it from the repository root:
 
 ```bash
-python final_submission.py --data everything_else/cv_validation_system/dataset.csv --skip-cv
+python final_submission.py --data everything_else/cv_validation_system/dataset.csv 
 ```
 
 It produces:
@@ -367,8 +367,6 @@ bias                  : 0.0002157616
 p95 absolute error    : 0.0181816275
 p99 absolute error    : 0.0615417097
 ```
-
-![CV metric cards](for_generating_readme/cv_metric_cards.png)
 
 The strongest errors are concentrated near the expiry regime, which matches the EDA and the final IV surface.
 
