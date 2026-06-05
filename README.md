@@ -1,6 +1,14 @@
-# Final Submission: Implied Volatility Completion
+# Implied Volatility Prediction across the Nifty50 options chain (PROJECT REPORT)
 
-This repository is centered around one file:
+This README file is the __project report__ for IITR Finclub Open Projects 2026 PS-2
+
+Implied volatility (IV) measures how much the market believes the price of a stock (or other underlying asset) will move in the future. In practice, IV is one of the most important quantities in options markets because it captures the market’s expectations of future uncertainty and typically varies across strikes, forming structures known as __volatility smiles__ or __volatility skews__.
+
+The objective of this project is to reconstruct a partially observed implied-volatility surface. Rather than treating the task as generic missing-value problem, I approach the problem as a cross-sectional structure prediction problem. My final submission (final_submission.py) does not take into account any temporal dependencies, as I found that for this particular problem, cross-sectional structure across moneyness and IV generate high quality signals.
+
+The remainder of this README is organized as follows. First, I present exploratory analysis of the dataset motivating the modeling decisions. Next, I describe the final methodology, including the interpolation and extrapolation procedures used for interior and edge regions of the smile, which was critical in reducing overall mse. I then present diagnostics, validation results, and finally, comparisons against alternative approaches (some of which were very promising and innovative), which unfortunately did not work for this dataset.
+
+Before moving to the solution, the repository is centered around one file:
 
 ```bash
 final_submission.py
@@ -12,7 +20,7 @@ That is the file I am submitting. It fills the missing implied-volatility values
 submission_final.csv
 ```
 
-Run it from the repository root:
+To run it from the repository root, run the following in terminal or run the final_submission.py file:
 
 ```bash
 python final_submission.py --data everything_else/cv_validation_system/dataset.csv 
@@ -27,17 +35,17 @@ diagnostics_final.csv
 cross_section_diagnostics_final.csv
 ```
 
-On the final full dataset run, the script filled `5,460` missing IV cells and left `0` missing values in the completed dataset. I've stored the 4 generater files in the folder:
+On the final full dataset run, the script filled `5,460` missing IV cells. I've stored the 4 generated files in the folder:
 ```text
 submission_files
 ```
 
-Before moving further, I would like to explain a bit about Implied Volatility 
+The rest of the directory contains submission files, eda files, validation system files that I used during the competition. All the files in the folder "everything_else" helped me make the final submission.
 
 ## Table Of Contents
 
-- [1. Dataset EDA](#1-dataset-eda)
-- [2. Final Idea](#2-final-idea)
+- [1. Dataset Visualisation/EDA](#1-dataset-eda)
+- [2. Problem Reduction](#2-final-idea)
 - [3. Final IV Surfaces](#3-final-iv-surfaces)
 - [4. Filling Logic](#4-filling-logic)
 - [5. Progressive Edge Filling](#5-progressive-edge-filling)
@@ -47,31 +55,44 @@ Before moving further, I would like to explain a bit about Implied Volatility
 - [9. Function Map](#9-function-map)
 - [10. Rebuilding Figures](#10-rebuilding-figures)
 
-## 1. Dataset EDA (Exploratory Data Analysis)
+## 1. Dataset EDA (Exploratory Data Analysis) / Visualisation
 
-The original dataset is an option surface for the __Nifty50__ options chain expiring on 27th Jan 2026. It has `975` timestamp rows, `28` option contracts (14 Put options and 14 Call options), and `5,460` missing IV (Implied Volatility) cells, which is exactly `20%` of the option grid.
+This section sets the motivation for all my methods and decisions presented in this report. This was my first step in the competition.
 
-The first important observation is that this is not one smooth time regime. Most days from Jan 7 to Jan 23 have low, stable IV. Jan 27 is different: it is the expiry-day regime. The daily average observed IV jumps to about `0.753`, and the cross-strike dispersion jumps to about `0.320`.
+The original dataset is a __Nifty50__ options chain surface (obviously with missing values) expiring on __27th Jan 2026__. It has `975` timestamp rows, `28` option contracts (14 Put options and 14 Call options), and `5,460` missing IV (Implied Volatility) cells, which is exactly `20%` of the all the options' IVs. Furthermore, since the missing values for each option were distributed randomly across time and not in a set train/test dataset, it seemed implausible that any ML/DL model would work, but nonetheless, I tried a few ML/DL approaches (and even a CNN-based method) all of beared no fruit.
+
+Moving ahead, the first important observation is that this is not one smooth time regime. All days from Jan 7 to Jan 23 have low, stable IV, but Jan 27 is different. Since it was the expiry day of all options, we expect the IVs to have a very fastly increasing surface, which is what we observed as shown in the picture(s) below. In the pictures below, we clearly observe a regime shift (pre 27th Jan and 27th Jan). After looking at more expiry day IV prediction research papers, and not finding anything useful, I decided to just use different hyperparameters for both regimes and that is what the current solution does as well. However, I feel there is much to be dug upon on this topic.
 
 ![Dataset EDA regime formation](for_generating_readme/dataset_regime_eda.png)
 
-The missingness is also structured. Each timestamp gives a partial CE smile and a partial PE smile across strikes. The model is not filling unrelated holes; it is reconstructing incomplete cross-sections.
+#
+The missingness is also very uniformly, but randomly distributed. Each timestamp gives a partial CE (call option) smile and a partial PE (put option) smile across strikes. As you can see from the picture below (given and missing values across time and moneyness), there is no pattern to be found from the structure of missing data. Furthermore, looking at the below figure, it gives a clear direction to proceed it - to focus not too much on previous timestamps, but on the cross-sectional structure (IV smile and skew) per timestamp.
 
 ![Given and missing values across cross-sections](for_generating_readme/missing_given_cross_section_eda.png)
 
-Raw smiles make the regime shift obvious. Early smiles are low and calm; Jan 27 smiles become steep, wide, and asymmetric.
+#
+Further analysis of Raw smiles make the regime shift obvious by observing the scale of Y-axis in the 6 figures below. Early smiles are low and calm, while Jan 27 smiles become increasing steep and noisy (if looked at across time).
 
 ![Raw smile regime snapshots](for_generating_readme/raw_smile_regime_snapshots.png)
 
-This EDA is the reason I trusted same-timestamp smile structure more than a global time-series smoother. The lag-1 EDA in `everything_else/eda/eda_lag1_calendar_gap/` showed high adjacent-time correlation, but Jan 27 has much larger IV changes. The surface is locally structured, but the time path is not uniformly gentle.
+This EDA is the reason I trusted same-timestamp smile structure more than a global time-series smoother. Although the lag-1 EDA showed high adjacent-time correlation Jan 27 has much larger IV changes for the lag-1 signal to effectively capture (or atleast that's what I found).
 
-## 2. Final Idea
+Further EDA files can be found in the folder `everything_else/eda`
 
-The model treats each timestamp as an implied-volatility smile. For a missing option cell, the question is:
 
-> At this timestamp, what does the CE or PE smile look like across strikes, and where should this missing strike sit on that smile?
+## 2. Problem reduction 
 
-The model works in moneyness:
+This section presents the reduction/translation of the problem statement into a geometry problem along with a key insight I realized (after 60 submissions!)
+
+The model treats each timestamp as an implied-volatility smile, and thus solves for missing values using geometric fits. For a missing option cell, the problem reduces to:
+
+> Fit a curve given the datapoints that represent the current underlying asset scenario. The curve should be a function of IV vs moneyness. Now, I just had to find the "best" curve.
+
+We know, moneyness describes an option's value at a particular point in time. It relates to the option's strike price and the price of its underlying asset and indicates whether the option would make money if it were exercised immediately.
+
+After trying various functions of strike and underlying price, I found that a simple ratio works the best. 
+
+Thus, we define `moneyness (= x)` as:
 
 ```math
 x = \frac{K}{S}
@@ -79,14 +100,16 @@ x = \frac{K}{S}
 
 where `K` is strike and `S` is the underlying price.
 
-Every missing cell is routed into one of two geometries:
+Now, the key observation that was responsible for reducing the mse was __to classify missing values based on their relative positions across the respective option class (call/put).__
+
+Thus, every missing cell is "routed" into one of two geometries:
 
 ```text
-interior gap -> interpolate inside the observed smile
-edge wing    -> extrapolate outward from one observed side
+interior gap: the missing value was surrounded by non-missing values
+edge wing: the missing value was not surrounded by non-missing values on both sides (ie: it was on an "edge")
 ```
 
-Interior gaps are safer because there are observed strikes on both sides. Edge wings are harder because the model has to extend the smile beyond the observed support.
+Clearly, interior gaps are safer and easier to predict because there are observed strikes on both sides. However edge wings are harder and not accurate because the model has to extend the smile beyond the observed support, without regression on the other side.
 
 ## 3. Final IV Surfaces
 
