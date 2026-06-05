@@ -1,20 +1,3 @@
-"""
-try_final_pchip_interior.py
-===========================
-
-Same edge logic as try_final.py:
-    edge predictions use the validated degree+bandwidth LOO selector.
-
-Only interior / non-edge logic is changed:
-    base_try_final = same-row local quadratic WLS from try.py
-    pchip_pred     = same-row PCHIP interpolation, only when target is inside
-                     the observed strike/moneyness range
-    final interior = (1 - PCHIP_INTERIOR_WEIGHT) * base_try_final
-                     + PCHIP_INTERIOR_WEIGHT * pchip_pred
-
-Edges are not touched.
-"""
-
 import argparse
 import re
 from pathlib import Path
@@ -29,9 +12,6 @@ except Exception:
     PchipInterpolator = None
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Configuration
-# ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
     "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
@@ -44,20 +24,15 @@ BANDWIDTH_GRID     = np.array([5e-5, 7e-5, 1e-4, 1.5e-4, 2e-4], dtype=float)
 EDGE_LOCAL_POLY_BW = 2e-4
 LOCAL_POLY_DEGREE  = 2
 
-EDGE_BLEND_CLAUDE    = 0.72
+EDGE_BLEND_PRIMARY    = 0.72
 EDGE_BLEND_CORRECTED = 0.14
 EDGE_BLEND_QUADRATIC = 0.14
 MIN_EDGE_LOCAL_NEIGHBORS = 3
 
-# The only new interior change.
-# Conservative because previous validation showed PCHIP helps only as a small blend.
 PCHIP_INTERIOR_WEIGHT = 0.25
 MIN_PCHIP_POINTS = 4
 
 
-# ─────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────
 
 CFG_DATA       = str(DEFAULT_DATA_PATH)
 CFG_OUT_PREFIX = "try_final_pchip_interior"
@@ -73,9 +48,6 @@ def parse_args():
     return parser.parse_args()
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────
 
 def parse_metadata(df):
     pattern = re.compile(
@@ -152,9 +124,6 @@ def eval_quadratic(coeff, x):
     return safe_iv(float(np.polyval(coeff, x)))
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Local polynomial WLS
-# ─────────────────────────────────────────────────────────────────────
 
 def local_poly_wls_pred(x_obs, y_obs, x_target, bandwidth, degree=LOCAL_POLY_DEGREE):
     x_obs = np.asarray(x_obs, float)
@@ -193,7 +162,6 @@ def local_poly_wls_loo_preds(x_obs, y_obs, bandwidth, degree=LOCAL_POLY_DEGREE):
 
 
 def select_bandwidth_by_loo(x_obs, y_obs, bandwidth_grid=BANDWIDTH_GRID):
-    """Original try.py non-edge method: fixed degree=2, LOO over bandwidth only."""
     x_obs = np.asarray(x_obs, float)
     y_obs = np.asarray(y_obs, float)
     if len(y_obs) <= 2:
@@ -211,7 +179,6 @@ def select_bandwidth_by_loo(x_obs, y_obs, bandwidth_grid=BANDWIDTH_GRID):
 
 
 def select_bandwidth_and_degree_by_loo(x_obs, y_obs, bandwidth_grid=BANDWIDTH_GRID):
-    """Edge-only selector from try_final.py: choose degree in {1,2} and bandwidth by LOO."""
     x_obs = np.asarray(x_obs, float)
     y_obs = np.asarray(y_obs, float)
     if len(y_obs) <= 2:
@@ -231,10 +198,6 @@ def select_bandwidth_and_degree_by_loo(x_obs, y_obs, bandwidth_grid=BANDWIDTH_GR
 
 
 def pchip_same_row_pred(x_obs, y_obs, x_target):
-    """
-    Interior-only PCHIP interpolation.
-    Strictly no extrapolation: returns nan outside observed x range.
-    """
     if PchipInterpolator is None:
         return np.nan
 
@@ -249,7 +212,6 @@ def pchip_same_row_pred(x_obs, y_obs, x_target):
     order = np.argsort(x)
     x, y = x[order], y[order]
 
-    # Collapse duplicate x values, if any, by averaging y.
     ux, inv = np.unique(x, return_inverse=True)
     if len(ux) < MIN_PCHIP_POINTS:
         return np.nan
@@ -274,9 +236,6 @@ def pchip_same_row_pred(x_obs, y_obs, x_target):
     return safe_iv(p) if np.isfinite(p) else np.nan
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Row-structure helpers
-# ─────────────────────────────────────────────────────────────────────
 
 def collect_same_row_points(row, opt_type, cols_by_type, strike_map):
     spot = row["underlying_price"]
@@ -326,9 +285,6 @@ def is_edge_missing(row, target_col, opt_type, cols_by_type, strike_map):
     return False, "not_edge", "", [], np.nan
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Non-edge prediction: try.py base + PCHIP blend
-# ─────────────────────────────────────────────────────────────────────
 
 def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
                                 cols_by_type, strike_map, global_median_iv):
@@ -349,7 +305,6 @@ def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
 
     x_target = strike_map[target_col] / spot
 
-    # Original try.py interior prediction.
     best_bw, loo_mse = select_bandwidth_by_loo(x_obs, y_obs, BANDWIDTH_GRID)
     base_pred = local_poly_wls_pred(x_obs, y_obs, x_target, best_bw, degree=LOCAL_POLY_DEGREE)
 
@@ -359,7 +314,6 @@ def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
     else:
         selected_model = "local_quadratic_wls"
 
-    # New: PCHIP only for true interior interpolation.
     pchip_pred = pchip_same_row_pred(x_obs, y_obs, x_target)
     if np.isfinite(pchip_pred):
         pred = (1.0 - PCHIP_INTERIOR_WEIGHT) * base_pred + PCHIP_INTERIOR_WEIGHT * pchip_pred
@@ -382,11 +336,8 @@ def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
             "pchip_prediction": pchip_pred if np.isfinite(pchip_pred) else np.nan}
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Edge training-point collectors copied from try_final.py
-# ─────────────────────────────────────────────────────────────────────
 
-def collect_edge_training_points_claude(row, target_col, opt_type, cols_by_type,
+def collect_edge_training_points_primary(row, target_col, opt_type, cols_by_type,
                                         strike_map, already_filled):
     spot = row["underlying_price"]
     if pd.isna(spot) or spot <= 0:
@@ -421,7 +372,7 @@ def collect_edge_training_points_claude(row, target_col, opt_type, cols_by_type,
     for pc in prev:
         if pc not in already_filled:
             continue
-        pv = component_value(already_filled, pc, "claude")
+        pv = component_value(already_filled, pc, "primary")
         if np.isfinite(pv):
             x_t.append(float(pv))
             y_t.append(float(pv))
@@ -529,9 +480,6 @@ def collect_edge_training_points_quadratic(row, target_col, opt_type, cols_by_ty
              "edge_position_in_block": position, "edge_base_observed_needed": base_n})
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Edge predictors copied from try_final.py
-# ─────────────────────────────────────────────────────────────────────
 
 def _edge_predict_with_deg_select(x_obs, y_obs, x_target, global_median_iv):
     if len(y_obs) == 0:
@@ -548,7 +496,7 @@ def _edge_predict_with_deg_select(x_obs, y_obs, x_target, global_median_iv):
     return safe_iv(pred), best_bw, best_deg, loo_mse
 
 
-def predict_edge_claude_local_poly(df, row_idx, target_col, opt_type,
+def predict_edge_primary_local_poly(df, row_idx, target_col, opt_type,
                                     cols_by_type, strike_map, global_median_iv, already_filled):
     row  = df.loc[row_idx]
     spot = row["underlying_price"]
@@ -562,7 +510,7 @@ def predict_edge_claude_local_poly(df, row_idx, target_col, opt_type,
                 "edge_position_in_block": np.nan,
                 "pchip_used": False}
 
-    x_obs, y_obs, used, edge_info = collect_edge_training_points_claude(
+    x_obs, y_obs, used, edge_info = collect_edge_training_points_primary(
         row, target_col, opt_type, cols_by_type, strike_map, already_filled)
 
     if len(y_obs) == 0:
@@ -578,8 +526,8 @@ def predict_edge_claude_local_poly(df, row_idx, target_col, opt_type,
     pred, bw, deg, loo_mse = _edge_predict_with_deg_select(x_obs, y_obs, x_target, global_median_iv)
 
     return {"prediction": pred,
-            "source": "edge_claude_linear_or_quad_by_loo",
-            "selected_model": f"edge_claude_deg{deg}_bw{bw:.0e}",
+            "source": "edge_primary_linear_or_quad_by_loo",
+            "selected_model": f"edge_primary_deg{deg}_bw{bw:.0e}",
             "bandwidth": bw, "loo_mse": loo_mse,
             "n_train": len(y_obs), "used_cols": used,
             "edge_degree": deg,
@@ -619,10 +567,10 @@ def predict_edge_quadratic(df, row_idx, target_col, opt_type,
 
 def predict_edge_ensemble(df, row_idx, target_col, opt_type,
                            cols_by_type, strike_map, global_median_iv, already_filled):
-    claude_info = predict_edge_claude_local_poly(
+    primary_info = predict_edge_primary_local_poly(
         df, row_idx, target_col, opt_type,
         cols_by_type, strike_map, global_median_iv, already_filled)
-    claude_pred = claude_info["prediction"]
+    primary_pred = primary_info["prediction"]
 
     corrected_pred, corrected_cols, corrected_info = predict_edge_corrected_local_poly(
         df, row_idx, target_col, opt_type,
@@ -633,11 +581,11 @@ def predict_edge_ensemble(df, row_idx, target_col, opt_type,
         cols_by_type, strike_map, global_median_iv, already_filled)
 
     components = {
-        "claude":    safe_iv(claude_pred),
+        "primary":    safe_iv(primary_pred),
         "corrected": safe_iv(corrected_pred),
         "quadratic": safe_iv(quadratic_pred),
     }
-    pred = (EDGE_BLEND_CLAUDE    * components["claude"] +
+    pred = (EDGE_BLEND_PRIMARY    * components["primary"] +
             EDGE_BLEND_CORRECTED * components["corrected"] +
             EDGE_BLEND_QUADRATIC * components["quadratic"])
 
@@ -647,7 +595,7 @@ def predict_edge_ensemble(df, row_idx, target_col, opt_type,
     else:
         selected_model = "edge_blended_deg_selected"
 
-    return {**claude_info,
+    return {**primary_info,
             "prediction": safe_iv(pred),
             "source": "edge_blended_deg_selected",
             "selected_model": selected_model,
@@ -659,9 +607,6 @@ def predict_edge_ensemble(df, row_idx, target_col, opt_type,
             "edge_base_observed_needed": quad_info.get("edge_base_observed_needed", np.nan)}
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Router and fill order
-# ─────────────────────────────────────────────────────────────────────
 
 def predict_cell(df, row_idx, target_col, opt_type, cols_by_type,
                  strike_map, global_median_iv, already_filled):
@@ -699,9 +644,6 @@ def build_missing_cell_fill_order(df, cols_by_type, strike_map):
     return missing_cells
 
 
-# ─────────────────────────────────────────────────────────────────────
-# CV Validation
-# ─────────────────────────────────────────────────────────────────────
 
 def run_cv_validation(df, option_cols, cols_by_type, strike_map, type_map,
                       global_median_iv, mask_frac=0.08, seed=42, n_reps=5):
@@ -735,21 +677,18 @@ def run_cv_validation(df, option_cols, cols_by_type, strike_map, type_map,
             })
 
     df_r = pd.DataFrame(results)
-    print(f"\n{'─'*55}")
-    print(f"  CV Validation ({n_reps} reps × {mask_frac*100:.0f}% mask, {len(df_r)} predictions)")
-    print(f"{'─'*55}")
+    print(f"\n{'-'*55}")
+    print(f"  CV Validation ({n_reps} reps x {mask_frac*100:.0f}% mask, {len(df_r)} predictions)")
+    print(f"{'-'*55}")
     print(f"  Overall MSE  : {df_r.sq_err.mean():.8f}")
     for label, filt in [("edge", df_r.is_edge), ("interior", ~df_r.is_edge), ("pchip_used", df_r.pchip_used)]:
         sub = df_r[filt]
         if len(sub):
             print(f"  [{label:10s}] MSE : {sub.sq_err.mean():.8f}  (n={len(sub)})")
-    print(f"{'─'*55}\n")
+    print(f"{'-'*55}\n")
     return df_r
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────────────────────────────
 
 def main():
     args = parse_args()
@@ -815,7 +754,7 @@ def main():
         components = info.get("component_predictions", {})
         filled_values_by_row[row_idx][col] = {
             "final": pred,
-            "claude": components.get("claude", pred),
+            "primary": components.get("primary", pred),
             "corrected": components.get("corrected", pred),
             "quadratic": components.get("quadratic", pred),
         }
@@ -844,7 +783,7 @@ def main():
             "pchip_prediction": info.get("pchip_prediction", np.nan),
             "n_train": info["n_train"],
             "used_cols": "|".join(map(str, info["used_cols"])),
-            "edge_claude_prediction": info.get("component_predictions", {}).get("claude", np.nan),
+            "edge_primary_prediction": info.get("component_predictions", {}).get("primary", np.nan),
             "edge_corrected_prediction": info.get("component_predictions", {}).get("corrected", np.nan),
             "edge_quadratic_prediction": info.get("component_predictions", {}).get("quadratic", np.nan),
             "edge_corrected_used_cols": "|".join(map(str, info.get("corrected_used_cols", []))),
@@ -866,9 +805,9 @@ def main():
     diag_df.to_csv(diagnostics_out, index=False)
     diag_df.to_csv(cross_diag_out, index=False)
 
-    print(f"✅  Filled dataset → {filled_out}")
-    print(f"✅  Submission     → {submission_out} ({len(sub)} rows)")
-    print(f"✅  Diagnostics    → {diagnostics_out}")
+    print(f"Filled dataset -> {filled_out}")
+    print(f"Submission     -> {submission_out} ({len(sub)} rows)")
+    print(f"Diagnostics    -> {diagnostics_out}")
     print(f"    Missing after  : {diag['missing_after']}")
     if diag_df[diag_df.edge].shape[0] > 0:
         deg_counts = diag_df[diag_df.edge]["edge_degree"].value_counts().to_dict()
