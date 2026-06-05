@@ -136,7 +136,23 @@ Interior gaps are handled with local weighted regression plus PCHIP interpolatio
 
 > We note that the late surface jump is the key visual queue that prompted me to classify missing values. As we saw, near expiry, IV rises sharply and the wings become much harder to extrapolate. This is why a single global quadratic, a single time-series smoother, or a direct machine-learning model was not enough.
 
+The full pipeline is charted below. It shows a clear classification based split based on the above discussed class - 
+
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#070A12",
+    "primaryColor": "#111827",
+    "primaryTextColor": "#D8DDF5",
+    "primaryBorderColor": "#64748B",
+    "lineColor": "#9CA3AF",
+    "secondaryColor": "#172033",
+    "tertiaryColor": "#0F172A",
+    "fontFamily": "Inter, Arial, sans-serif"
+  }
+}}%%
+
 flowchart TD
     A[Missing IV cell] --> B[Parse option metadata]
     B --> C[Identify option type: CE or PE]
@@ -144,53 +160,40 @@ flowchart TD
     D --> E[Compute moneyness: x = K / S]
     E --> F[Look at same timestamp and same option type]
     F --> G{Is the missing value on an edge?}
-    G -- No, interior gap --> H[Send to interior prediction engine]
+
+    G -- No, interior gap --> H[Interior prediction engine]
     H --> I[Local quadratic WLS]
-    I --> J[Optional PCHIP interpolation]
-    J --> K[Blend WLS and PCHIP prediction]
+    I --> J[PCHIP interpolation]
+    J --> K[Blend: 0.75 WLS + 0.25 PCHIP]
     K --> L[Final predicted IV]
-    G -- Yes, edge wing --> M[Send to edge prediction engine]
-    M --> N[Fill progressively from observed boundary outward]
-    N --> O[Build primary edge prediction]
-    N --> P[Build corrected edge prediction]
-    N --> Q[Build quadratic edge prediction]
-    O --> R[Blend edge predictions]
+
+    G -- Yes, edge wing --> M[Edge prediction engine]
+    M --> N[Progressive filling from boundary]
+    N --> O[Primary prediction]
+    N --> P[Corrected prediction]
+    N --> Q[Quadratic prediction]
+    O --> R[Blend: 0.72 primary + 0.14 corrected + 0.14 quadratic]
     P --> R
     Q --> R
     R --> L
-```
-The full filling pipeline can be summarized as:
 
-```text
-read dataset
-parse option contracts
-sort by datetime
-split columns into CE and PE groups
-for each timestamp:
-    for CE and PE separately:
-        detect edge missing blocks
-        detect interior missing values
-        fill left edge progressively
-        fill interior values
-        fill right edge progressively
-write filled dataset
-write submission file
-write diagnostics
+    classDef start fill:#0B1020,stroke:#FFD34D,stroke-width:2px,color:#F8FAFC;
+    classDef process fill:#111827,stroke:#64748B,stroke-width:1.5px,color:#D8DDF5;
+    classDef decision fill:#1E1B4B,stroke:#60A5FA,stroke-width:2px,color:#E0F2FE;
+    classDef interior fill:#123524,stroke:#6EE7B7,stroke-width:2px,color:#DCFCE7;
+    classDef edge fill:#3B1D0B,stroke:#F97316,stroke-width:2px,color:#FFEDD5;
+    classDef blend fill:#4A102A,stroke:#F43F5E,stroke-width:2px,color:#FFE4E6;
+    classDef final fill:#7C2D12,stroke:#FACC15,stroke-width:3px,color:#FEF3C7;
+
+    class A start;
+    class B,C,D,E,F process;
+    class G decision;
+    class H,I,J,K interior;
+    class M,N,O,P,Q edge;
+    class R blend;
+    class L final;
 ```
 
-The functions implementing this logic are:
-
-```text
-parse_metadata
-collect_same_row_points
-get_same_side_state
-get_edge_blocks
-is_edge_missing
-predict_cell
-predict_non_edge_local_poly
-predict_edge_ensemble
-build_missing_cell_fill_order
-```
 
 ### 4.1 Metadata Parsing
 
