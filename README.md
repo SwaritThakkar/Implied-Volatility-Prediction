@@ -1,16 +1,4 @@
-<style>
-body {
-  background: #0a0d14;
-  color: #f3f7ff;
-}
-a {
-  color: #00d4ff;
-}
-code, pre {
-  background: #101722;
-  color: #f8c14a;
-}
-</style>
+![Final Submission: Implied Volatility Completion](for_generating_readme/readme_dark_banner.svg)
 
 # Final Submission: Implied Volatility Completion
 
