@@ -204,23 +204,44 @@ quadratic : local wing neighborhood with degree selected by LOO
 For edges, the model searches both degree and bandwidth:
 
 $$
-d \in \{1,2\}, \qquad h \in \{5\cdot10^{-5}, 7\cdot10^{-5}, 10^{-4}, 1.5\cdot10^{-4}, 2\cdot10^{-4}\}
+d \in \{1,2\}
+$$
+
+$$
+h \in \{5\cdot10^{-5},\ 7\cdot10^{-5},\ 10^{-4},\ 1.5\cdot10^{-4},\ 2\cdot10^{-4}\}
+$$
+
+For every candidate pair \(d,h)\, it computes the leave-one-out error:
+
+$$
+\mathrm{LOO\_MSE}(d,h)
+=
+\frac{1}{n}
+\sum_{i=1}^{n}
+\left(
+\widehat{y}_{-i}(x_i;d,h)-y_i
+\right)^2
 $$
 
 and selects:
 
 $$
 (d^\star,h^\star)
-= \arg\min_{d,h}\text{LOO$\_MSE$}(d,h)
+=
+\arg\min_{d,h}
+\mathrm{LOO\_MSE}(d,h)
 $$
 
 The final edge ensemble is:
 
 $$
-\hat{y}_{\text{edge}}
-= 0.72\,\hat{y}_{\text{primary}}
-+ 0.14\,\hat{y}_{\text{corrected}}
-+ 0.14\,\hat{y}_{\text{quadratic}}
+\widehat{y}_{\text{edge}}
+=
+0.72\,\widehat{y}_{\text{primary}}
++
+0.14\,\widehat{y}_{\text{corrected}}
++
+0.14\,\widehat{y}_{\text{quadratic}}
 $$
 
 ## 5. Progressive Edge Filling
