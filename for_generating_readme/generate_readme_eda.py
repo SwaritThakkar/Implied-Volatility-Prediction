@@ -109,6 +109,19 @@ def surface_grid(df, opt_type):
     return long, D, S, Z, (lo, hi)
 
 
+def observed_surface_points(original, opt_type, lo_hi, step=3):
+    if original is None:
+        return pd.DataFrame()
+    obs = prepare_long(original, opt_type)
+    obs = obs[np.isfinite(obs["iv"]) & np.isfinite(obs["days_to_expiry"])].copy()
+    obs = obs[obs["days_to_expiry"] >= 0].copy()
+    if obs.empty:
+        return obs
+    lo, hi = lo_hi
+    obs["iv_plot"] = obs["iv"].clip(lo, hi)
+    return obs.iloc[::step].copy()
+
+
 def style_3d_axis(ax):
     ax.set_facecolor("#050812")
     ax.tick_params(colors="#d8e1ff", labelsize=8)
@@ -118,8 +131,9 @@ def style_3d_axis(ax):
     ax.grid(True, color="#52617f", alpha=0.35)
 
 
-def save_surface(df, opt_type, filename, title):
-    long, D, S, Z, _ = surface_grid(df, opt_type)
+def save_surface(df, opt_type, filename, title, original=None):
+    long, D, S, Z, lo_hi = surface_grid(df, opt_type)
+    observed = observed_surface_points(original, opt_type, lo_hi, step=6)
 
     sample = long.iloc[::4].copy()
     fig = go.Figure()
@@ -148,6 +162,22 @@ def save_surface(df, opt_type, filename, title):
         name="filled contracts",
         hovertemplate="t=%{x}<br>K/S=%{y:.4f}<br>IV=%{z:.4f}<extra></extra>",
     ))
+    if not observed.empty:
+        fig.add_trace(go.Scatter3d(
+            x=observed["days_to_expiry"],
+            y=observed["strike"],
+            z=observed["iv_plot"],
+            mode="markers",
+            marker={
+                "size": 2.9,
+                "color": "#f8c14a",
+                "opacity": 0.68,
+                "symbol": "circle",
+                "line": {"color": "#ffffff", "width": 0.8},
+            },
+            name="given IV observations",
+            hovertemplate="days=%{x:.2f}<br>strike=%{y}<br>IV=%{z:.4f}<extra></extra>",
+        ))
     fig.update_layout(
         title={"text": title, "x": 0.5, "font": {"size": 30, "color": "white"}},
         template="plotly_dark",
@@ -185,6 +215,19 @@ def save_surface(df, opt_type, filename, title):
     z_floor = float(np.nanmin(Z)) - 0.04 * (float(np.nanmax(Z)) - float(np.nanmin(Z)))
     ax3d.contour(D, S, Z, zdir="z", offset=z_floor, levels=18, cmap="turbo", alpha=0.66, linewidths=0.8)
     ax3d.contour(D, S, Z, zdir="x", offset=float(np.nanmax(D)), levels=12, cmap="turbo", alpha=0.32, linewidths=0.55)
+    if not observed.empty:
+        ax3d.scatter(
+            observed["days_to_expiry"],
+            observed["strike"],
+            observed["iv_plot"],
+            s=5,
+            c="#f8c14a",
+            edgecolors="white",
+            linewidths=0.25,
+            alpha=0.56,
+            depthshade=False,
+        )
+        ax3d.text2D(0.06, 0.88, "gold dots = given IV observations", transform=ax3d.transAxes, color="#f8c14a", fontsize=11, weight="bold")
     ax3d.view_init(elev=29, azim=-132)
     ax3d.set_box_aspect((1.9, 1.0, 0.78))
     ax3d.set_title(title, color="white", fontsize=19, weight="bold", pad=14)
@@ -202,13 +245,35 @@ def save_surface(df, opt_type, filename, title):
     plt.close(static)
 
 
-def save_combined_surface(df):
-    long_ce, D_ce, S_ce, Z_ce, _ = surface_grid(df, "CE")
-    long_pe, D_pe, S_pe, Z_pe, _ = surface_grid(df, "PE")
+def save_combined_surface(df, original=None):
+    long_ce, D_ce, S_ce, Z_ce, lo_hi_ce = surface_grid(df, "CE")
+    long_pe, D_pe, S_pe, Z_pe, lo_hi_pe = surface_grid(df, "PE")
+    observed_ce = observed_surface_points(original, "CE", lo_hi_ce, step=8)
+    observed_pe = observed_surface_points(original, "PE", lo_hi_pe, step=8)
 
     fig = go.Figure()
     fig.add_trace(go.Surface(x=D_ce, y=S_ce, z=Z_ce, colorscale="Blues", opacity=0.92, name="CE surface", showscale=False))
     fig.add_trace(go.Surface(x=D_pe, y=S_pe, z=Z_pe, colorscale="Reds", opacity=0.82, name="PE surface", showscale=True, colorbar={"title": "IV"}))
+    if not observed_ce.empty:
+        fig.add_trace(go.Scatter3d(
+            x=observed_ce["days_to_expiry"],
+            y=observed_ce["strike"],
+            z=observed_ce["iv_plot"],
+            mode="markers",
+            marker={"size": 2.8, "color": "#00d4ff", "opacity": 0.68, "line": {"color": "#ffffff", "width": 0.5}},
+            name="given CE observations",
+            hovertemplate="CE<br>days=%{x:.2f}<br>strike=%{y}<br>IV=%{z:.4f}<extra></extra>",
+        ))
+    if not observed_pe.empty:
+        fig.add_trace(go.Scatter3d(
+            x=observed_pe["days_to_expiry"],
+            y=observed_pe["strike"],
+            z=observed_pe["iv_plot"],
+            mode="markers",
+            marker={"size": 2.8, "color": "#ff4d6d", "opacity": 0.68, "line": {"color": "#ffffff", "width": 0.5}},
+            name="given PE observations",
+            hovertemplate="PE<br>days=%{x:.2f}<br>strike=%{y}<br>IV=%{z:.4f}<extra></extra>",
+        ))
     fig.update_layout(
         title={"text": "combined CE and PE implied-volatility surfaces", "x": 0.5, "font": {"size": 30, "color": "white"}},
         template="plotly_dark",
@@ -237,6 +302,10 @@ def save_combined_surface(df):
     ax.plot_surface(D_pe, S_pe, Z_pe, cmap="autumn", linewidth=0.14, edgecolor=(0.02, 0.04, 0.08, 0.26), alpha=0.82, antialiased=True)
     ax.contour(D_ce, S_ce, Z_ce, zdir="z", offset=z_floor, levels=16, cmap="winter", alpha=0.52, linewidths=0.7)
     ax.contour(D_pe, S_pe, Z_pe, zdir="z", offset=z_floor, levels=16, cmap="autumn", alpha=0.45, linewidths=0.7)
+    if not observed_ce.empty:
+        ax.scatter(observed_ce["days_to_expiry"], observed_ce["strike"], observed_ce["iv_plot"], s=5, c="#00d4ff", edgecolors="white", linewidths=0.18, alpha=0.58, depthshade=False)
+    if not observed_pe.empty:
+        ax.scatter(observed_pe["days_to_expiry"], observed_pe["strike"], observed_pe["iv_plot"], s=5, c="#ff4d6d", edgecolors="white", linewidths=0.18, alpha=0.58, depthshade=False)
     ax.view_init(elev=29, azim=-132)
     ax.set_box_aspect((1.9, 1.0, 0.78))
     ax.set_title("combined CE and PE implied-volatility surfaces", color="white", fontsize=19, weight="bold", pad=14)
@@ -247,6 +316,7 @@ def save_combined_surface(df):
     ax.invert_xaxis()
     ax.text2D(0.06, 0.90, "CE surface", transform=ax.transAxes, color="#38bdf8", fontsize=13, weight="bold")
     ax.text2D(0.06, 0.855, "PE surface", transform=ax.transAxes, color="#fb7185", fontsize=13, weight="bold")
+    ax.text2D(0.06, 0.81, "small bright dots = given IV observations", transform=ax.transAxes, color="#f8c14a", fontsize=11, weight="bold")
     fig2.subplots_adjust(left=0.0, right=0.98, top=0.94, bottom=0.02)
     fig2.savefig(OUT / "iv_surface_combined_3d.png", facecolor=fig2.get_facecolor(), bbox_inches="tight")
     plt.close(fig2)
@@ -283,6 +353,169 @@ def save_missingness(original, not_dataset):
     fig.suptitle("where the model had to infer IV", color="white", fontsize=20, weight="bold")
     fig.tight_layout()
     fig.savefig(OUT / "missingness_original_and_validation.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_dataset_regime_eda(original):
+    if original is None:
+        return
+    opts = option_columns(original)
+    if not opts:
+        return
+
+    df = original.copy()
+    dt = pd.to_datetime(df["datetime"], format="%d-%m-%Y %H:%M", errors="coerce")
+    values = df[opts].astype(float)
+    dates = dt.dt.date.astype(str)
+    jan27 = dates == "2026-01-27"
+
+    row_summary = pd.DataFrame({
+        "row_index": np.arange(len(df)),
+        "datetime": dt,
+        "date": dates,
+        "mean_iv": values.mean(axis=1, skipna=True),
+        "median_iv": values.median(axis=1, skipna=True),
+        "iv_dispersion": values.std(axis=1, skipna=True),
+        "missing_rate": values.isna().mean(axis=1),
+        "underlying": df["underlying_price"].astype(float),
+    })
+
+    ce_cols = [c for c in opts if parse_contract(c)[1] == "CE"]
+    pe_cols = [c for c in opts if parse_contract(c)[1] == "PE"]
+    row_summary["ce_mean_iv"] = df[ce_cols].astype(float).mean(axis=1, skipna=True)
+    row_summary["pe_mean_iv"] = df[pe_cols].astype(float).mean(axis=1, skipna=True)
+    row_summary["ce_pe_gap"] = row_summary["ce_mean_iv"] - row_summary["pe_mean_iv"]
+
+    lag_path = OUT.parent / "everything_else" / "eda" / "eda_lag1_calendar_gap" / "lag1_timestamp_metrics.csv"
+    lag = None
+    if lag_path.exists():
+        lag = pd.read_csv(lag_path)
+        lag = lag[lag["option_type"] == "ALL"].copy()
+
+    fig, axes = plt.subplots(2, 2, figsize=(15.5, 9.2), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    for ax in axes.flat:
+        style_axis(ax)
+        ax.axvspan(row_summary.loc[jan27, "row_index"].min(), row_summary.loc[jan27, "row_index"].max(), color="#ff4d6d", alpha=0.12, lw=0)
+
+    x = row_summary["row_index"]
+    axes[0, 0].plot(x, row_summary["underlying"], color="#f8c14a", lw=1.7, label="underlying")
+    ax_iv = axes[0, 0].twinx()
+    ax_iv.set_facecolor("none")
+    ax_iv.plot(x, row_summary["mean_iv"], color="#00d4ff", lw=2.1, label="mean observed IV")
+    ax_iv.tick_params(colors="#d8e1ff")
+    for spine in ax_iv.spines.values():
+        spine.set_color("#34415f")
+    axes[0, 0].set_title("underlying path and observed IV level", color="white", fontsize=14, weight="bold")
+    axes[0, 0].set_xlabel("timestamp row index", color="#d8e1ff")
+    axes[0, 0].set_ylabel("underlying", color="#f8c14a")
+    ax_iv.set_ylabel("mean observed IV", color="#00d4ff")
+
+    axes[0, 1].plot(x, row_summary["iv_dispersion"], color="#6ee7b7", lw=2.0, label="cross-strike IV dispersion")
+    axes[0, 1].plot(x, row_summary["missing_rate"], color="#ff4d6d", lw=1.8, alpha=0.78, label="missing rate")
+    axes[0, 1].set_title("smile width and missingness by timestamp", color="white", fontsize=14, weight="bold")
+    axes[0, 1].set_xlabel("timestamp row index", color="#d8e1ff")
+    axes[0, 1].set_ylabel("rate / dispersion", color="#d8e1ff")
+    axes[0, 1].legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white", fontsize=8)
+
+    daily = row_summary.groupby("date", as_index=False).agg(
+        first_row=("row_index", "min"),
+        last_row=("row_index", "max"),
+        mean_iv=("mean_iv", "mean"),
+        iv_dispersion=("iv_dispersion", "mean"),
+        missing_rate=("missing_rate", "mean"),
+        row_count=("row_index", "count"),
+    )
+    daily["mid_row"] = (daily["first_row"] + daily["last_row"]) / 2
+    daily_colors = ["#ff4d6d" if d == "2026-01-27" else "#00d4ff" for d in daily["date"]]
+    axes[1, 0].bar(daily["mid_row"], daily["mean_iv"], width=46, color=daily_colors, alpha=0.88)
+    axes[1, 0].set_title("daily average observed IV: Jan 27 separates", color="white", fontsize=14, weight="bold")
+    axes[1, 0].set_xlabel("trading day, placed by row index", color="#d8e1ff")
+    axes[1, 0].set_ylabel("daily mean IV", color="#d8e1ff")
+    axes[1, 0].set_xticks(daily["mid_row"])
+    axes[1, 0].set_xticklabels([pd.Timestamp(d).strftime("%b %d") for d in daily["date"]], rotation=35, ha="right")
+    axes[1, 0].set_xlim(-25, len(df) + 25)
+
+    if lag is not None and not lag.empty:
+        axes[1, 1].plot(lag["row_index"], lag["lag1_corr_cross_options"], color="#00d4ff", lw=1.7, label="lag-1 cross-option corr")
+        ax_change = axes[1, 1].twinx()
+        ax_change.set_facecolor("none")
+        ax_change.plot(lag["row_index"], lag["mean_abs_iv_change"], color="#ff4d6d", lw=1.7, alpha=0.86, label="mean abs IV change")
+        ax_change.tick_params(colors="#d8e1ff")
+        for spine in ax_change.spines.values():
+            spine.set_color("#34415f")
+        axes[1, 1].set_ylabel("lag-1 correlation", color="#00d4ff")
+        ax_change.set_ylabel("mean abs IV change", color="#ff4d6d")
+    else:
+        axes[1, 1].plot(x, row_summary["ce_pe_gap"], color="#a78bfa", lw=1.9)
+        axes[1, 1].set_ylabel("CE mean IV - PE mean IV", color="#d8e1ff")
+    axes[1, 1].set_title("time continuity weakens around the expiry regime", color="white", fontsize=14, weight="bold")
+    axes[1, 1].set_xlabel("timestamp row index", color="#d8e1ff")
+
+    jan_start = int(row_summary.loc[jan27, "row_index"].min())
+    jan_end = int(row_summary.loc[jan27, "row_index"].max())
+    for ax in axes.flat:
+        ax.text(jan_start, ax.get_ylim()[1], "  Jan 27 expiry regime", color="#ff89a0", fontsize=8, weight="bold", va="top")
+
+    fig.suptitle("EDA: the dataset is not one smooth time regime", color="white", fontsize=22, weight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT / "dataset_regime_eda.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_missing_given_cross_section_eda(original):
+    if original is None:
+        return
+    opts = option_columns(original)
+    if not opts:
+        return
+
+    parsed = {c: parse_contract(c) for c in opts}
+    display_cols = sorted(opts, key=lambda c: (parsed[c][1], parsed[c][0]))
+    given = original[display_cols].notna().astype(int).T
+    labels = [f"{parsed[c][1]} {parsed[c][0]}" for c in display_cols]
+
+    fig = plt.figure(figsize=(15.5, 9.2), dpi=190)
+    fig.patch.set_facecolor("#0a0d14")
+    gs = fig.add_gridspec(2, 2, height_ratios=[1.35, 1.0], hspace=0.36, wspace=0.22)
+    ax_heat = fig.add_subplot(gs[0, :])
+    ax_ce = fig.add_subplot(gs[1, 0])
+    ax_pe = fig.add_subplot(gs[1, 1])
+    for ax in [ax_heat, ax_ce, ax_pe]:
+        ax.set_facecolor("#0f1724")
+        for spine in ax.spines.values():
+            spine.set_color("#34415f")
+        ax.tick_params(colors="#d8e1ff")
+
+    sns.heatmap(
+        given,
+        cmap=["#ff4d6d", "#101722"],
+        cbar=False,
+        ax=ax_heat,
+    )
+    ax_heat.set_title("given vs missing IV values across all timestamp cross-sections", color="white", fontsize=15, weight="bold")
+    ax_heat.set_xlabel("timestamp row index", color="#d8e1ff")
+    ax_heat.set_ylabel("contract ordered by type and strike", color="#d8e1ff")
+    ax_heat.set_yticks(np.arange(len(labels)) + 0.5)
+    ax_heat.set_yticklabels(labels, fontsize=6)
+    ax_heat.text(0.985, 1.05, "dark = given   red = missing", transform=ax_heat.transAxes, ha="right", color="#ffb3c1", fontsize=10, weight="bold")
+
+    for typ, ax, color in [("CE", ax_ce, "#00d4ff"), ("PE", ax_pe, "#ff4d6d")]:
+        cols = [c for c in display_cols if parsed[c][1] == typ]
+        strikes = np.array([parsed[c][0] for c in cols], dtype=float)
+        given_counts = original[cols].notna().sum(axis=0).to_numpy(float)
+        missing_counts = original[cols].isna().sum(axis=0).to_numpy(float)
+        ax.bar(strikes, given_counts, width=68, color=color, alpha=0.78, label="given values")
+        ax.bar(strikes, missing_counts, width=68, bottom=given_counts, color="#f8c14a", alpha=0.92, label="missing values")
+        ax.set_title(f"{typ} cross-section coverage measured over all timestamps", color="white", fontsize=14, weight="bold")
+        ax.set_xlabel("strike", color="#d8e1ff")
+        ax.set_ylabel("timestamp count", color="#d8e1ff")
+        ax.set_ylim(0, len(original) * 1.04)
+        ax.grid(axis="y", color="#253149", alpha=0.55)
+        ax.legend(facecolor="#101722", edgecolor="#34415f", labelcolor="white", fontsize=8)
+
+    fig.suptitle("EDA: where the dataset is given and where it is missing", color="white", fontsize=22, weight="bold")
+    fig.savefig(OUT / "missing_given_cross_section_eda.png", facecolor=fig.get_facecolor(), bbox_inches="tight")
     plt.close(fig)
 
 
@@ -650,9 +883,11 @@ def main():
     if original is None:
         original = filled.copy()
 
-    save_surface(filled, "CE", "iv_surface_ce_3d.png", "final filled CE implied-volatility surface")
-    save_surface(filled, "PE", "iv_surface_pe_3d.png", "final filled PE implied-volatility surface")
-    save_combined_surface(filled)
+    save_dataset_regime_eda(original)
+    save_missing_given_cross_section_eda(original)
+    save_surface(filled, "CE", "iv_surface_ce_3d.png", "final filled CE implied-volatility surface", original)
+    save_surface(filled, "PE", "iv_surface_pe_3d.png", "final filled PE implied-volatility surface", original)
+    save_combined_surface(filled, original)
     save_missingness(original, not_dataset)
     save_decision_charts(diag)
     save_smile_examples(filled, original)

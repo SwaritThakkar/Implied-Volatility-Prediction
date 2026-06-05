@@ -1,3 +1,17 @@
+<style>
+body {
+  background: #0a0d14;
+  color: #f3f7ff;
+}
+a {
+  color: #00d4ff;
+}
+code, pre {
+  background: #101722;
+  color: #f8c14a;
+}
+</style>
+
 # Final Submission: Implied Volatility Completion
 
 This repository is meant to be read around one file:
@@ -29,6 +43,33 @@ cross_section_diagnostics_try_final_pchip_interior.csv
 
 On the final full dataset run, it filled `5,460` missing IV cells and left `0` missing cells in the completed dataset.
 
+## EDA: What The Given Dataset Shows
+
+Before building the imputer, I first looked at the dataset as an option surface problem rather than as 28 unrelated columns. The given file has `975` timestamp rows, `28` option contracts, and `5,460` missing IV cells, which is exactly `20%` of the option grid.
+
+The important EDA result is that the data is not one smooth regime. Most trading days from Jan 7 to Jan 23 have fairly low and stable observed IV. Their daily average IV stays roughly in the `0.12` to `0.16` range, and the cross-strike smile dispersion stays around `0.025` to `0.042`.
+
+Jan 27 is different. It is the expiry-day regime. The daily average observed IV jumps to about `0.753`, and the cross-strike dispersion jumps to about `0.320`. That means the surface is no longer just shifting up and down; the smile itself is widening, steepening, and becoming more asymmetric near expiry.
+
+![Dataset EDA regime formation](for_generating_readme/dataset_regime_eda.png)
+
+The missing values also have structure. They are not just independent random holes. The heatmap below shows, for every timestamp and every contract, where IV was given and where it had to be inferred. The two lower panels compress the same idea across time: for each strike, they count how many timestamps were given and how many were missing.
+
+![Given and missing values across cross-sections](for_generating_readme/missing_given_cross_section_eda.png)
+
+This view is why I treated each timestamp as a cross-section. The data arrives as partial CE and PE smiles across strikes, repeated over time. The missingness is spread across the whole option chain, so the model has to reconstruct the smile shape at each timestamp instead of simply filling one isolated column.
+
+The EDA scripts in `everything_else/eda/` helped make this clear:
+
+```text
+everything_else/eda/eda_lag1_calendar_gap/
+everything_else/eda/eda_27jan_iv_3d_surface/
+```
+
+The lag-1 calendar-gap EDA showed that normal adjacent timestamps are usually highly correlated across option contracts. The median lag-1 cross-option correlation is about `0.995`. But the size of the IV move is very different on Jan 27: the mean absolute lag-1 IV change rises to about `0.055`, compared with roughly `0.002` to `0.006` on the earlier days.
+
+That shaped the final modeling decision. I did not want a method that blindly assumes time smoothness across the whole month. Calendar time is useful for understanding the market path, but for filling a missing cell, the strongest information is usually the same-timestamp smile around that strike. Jan 27 is the proof: the surface changes too sharply for a global temporal smoother to be trusted everywhere.
+
 ## The Short Version
 
 The solution treats every timestamp as an implied-volatility smile. Instead of predicting each option contract as an isolated time series, it asks:
@@ -59,6 +100,8 @@ That split is the main design decision.
 ## Final Filled IV Surfaces
 
 These plots are generated from the final filled dataset. The surface is built with SciPy interpolation over `(days to expiry, strike)`, which gives a clean rectangular volatility surface and shows the curvature of the call and put smiles more clearly. The plotting scale clips only the most extreme IV values for visibility, so the surface shape is readable instead of being dominated by expiry-day spikes.
+
+The small bright dots on the surfaces are the IV values that were already given in the original dataset. The smooth surface is the completed IV surface after the final filling method has inferred the missing cells around those observations.
 
 Interactive Plotly versions are also generated:
 
