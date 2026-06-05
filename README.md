@@ -135,7 +135,7 @@ The weighted least-squares problem is:
 
 $$
 \hat{\beta}
-= \arg\min_\beta
+= \arg\min_{\beta}
 \sum_i w_i \left(y_i - X_i\beta\right)^2
 $$
 
@@ -154,15 +154,17 @@ $$
 For each candidate:
 
 $$
-\text{MSE}(h)
-= \frac{1}{n}\sum_i
+\mathrm{MSE}(h)
+=
+\frac{1}{n}
+\sum_i
 \left(\hat{y}_{-i}(x_i;h)-y_i\right)^2
 $$
 
 and:
 
 $$
-h^\star = \arg\min_h \text{MSE}(h)
+h^\star = \arg\min_h \mathrm{MSE}(h)
 $$
 
 After local WLS, the model tries shape-preserving PCHIP interpolation. PCHIP is used only when the target lies inside the observed range, never for extrapolation.
@@ -170,9 +172,11 @@ After local WLS, the model tries shape-preserving PCHIP interpolation. PCHIP is 
 The final interior prediction is:
 
 $$
-\hat{y}_{\text{interior}}
-= 0.75\,\hat{y}_{\text{WLS}}
-+ 0.25\,\hat{y}_{\text{PCHIP}}
+\hat{y}_{\mathrm{interior}}
+=
+0.75\,\hat{y}_{\mathrm{WLS}}
++
+0.25\,\hat{y}_{\mathrm{PCHIP}}
 $$
 
 In the full run, all `4,491` non-edge fills used this PCHIP blend.
@@ -204,23 +208,44 @@ quadratic : local wing neighborhood with degree selected by LOO
 For edges, the model searches both degree and bandwidth:
 
 $$
-d \in \{1,2\}, \qquad h \in \{5\cdot10^{-5}, 7\cdot10^{-5}, 10^{-4}, 1.5\cdot10^{-4}, 2\cdot10^{-4}\}
+d \in \{1,2\}
+$$
+
+$$
+h \in \{5\cdot10^{-5},\ 7\cdot10^{-5},\ 10^{-4},\ 1.5\cdot10^{-4},\ 2\cdot10^{-4}\}
+$$
+
+For every candidate pair \((d,h)\), it computes the leave-one-out error:
+
+$$
+\mathrm{LOO\_MSE}(d,h)
+=
+\frac{1}{n}
+\sum_{i=1}^{n}
+\left(
+\hat{y}_{-i}(x_i;d,h)-y_i
+\right)^2
 $$
 
 and selects:
 
 $$
 (d^\star,h^\star)
-= \arg\min_{d,h}\text{LOO$\_MSE$}(d,h)
+=
+\arg\min_{d,h}
+\mathrm{LOO\_MSE}(d,h)
 $$
 
 The final edge ensemble is:
 
 $$
-\hat{y}_{\text{edge}}
-= 0.72\,\hat{y}_{\text{primary}}
-+ 0.14\,\hat{y}_{\text{corrected}}
-+ 0.14\,\hat{y}_{\text{quadratic}}
+\hat{y}_{\mathrm{edge}}
+=
+0.72\,\hat{y}_{\mathrm{primary}}
++
+0.14\,\hat{y}_{\mathrm{corrected}}
++
+0.14\,\hat{y}_{\mathrm{quadratic}}
 $$
 
 ## 5. Progressive Edge Filling
