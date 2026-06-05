@@ -211,7 +211,7 @@ and selects:
 
 $$
 (d^\star,h^\star)
-= \arg\min_{d,h}\text{LOO\_MSE}(d,h)
+= \arg\min_{d,h}\text{LOO$\_MSE$}(d,h)
 $$
 
 The final edge ensemble is:
