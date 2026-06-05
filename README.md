@@ -481,7 +481,6 @@ Before fitting PCHIP, the code:
 5. Rejects extrapolation.
 
 The PCHIP prediction is:
-
 ```math
 \hat{y}_{\mathrm{PCHIP}}(x_0)
 ```
@@ -509,25 +508,20 @@ PCHIP_INTERIOR_WEIGHT = 0.25
 
 If PCHIP is unavailable or invalid, the model uses only the WLS prediction.
 
-We note here that I used a weight of `0.25` because PCHIP on its own was bad, and the WLS (Weighted Least Squares) Method was better than PCHIP. It is clear that using PCHIP alone is worse intrisically because of the pieces being cubic, thus can sometimes violate the no-arbitrage conditions. I validated this us
+We note here that I used a weight of `0.25` because PCHIP on its own was bad, and the WLS (Weighted Least Squares) Method was better than PCHIP. It is clear that using PCHIP alone is worse intrisically because of the pieces being cubic, thus can sometimes violate the no-arbitrage conditions. I validated this using the `cv_validation_system` in the `everything_else` folder and saw PCHIP failing miserably in 1/2 rows, but outperforming in other. So as to prevent overfitting, I just took an ensemble instead of a signal based method selecting system.
 
 ---
 
 ## 4.6 Edge Cell Prediction
 
-Edge cells are the most difficult part of the problem. They are missing values at the outer wing of a CE or PE smile.
+Edge cells are the most difficult part of the problem. They are missing values at the outer wing of a CE or PE smile, and contribute to __most__ of the error.
 
-For example, a right edge can look like:
+As seen previously, a right edge can look like: 
+ `observed observed observed missing_1 missing_2 missing_3`
 
-```text
-observed observed observed missing_1 missing_2 missing_3
-```
+And a left edge can look like: 
+ `missing_3 missing_2 missing_1 observed observed observed`
 
-A left edge can look like:
-
-```text
-missing_3 missing_2 missing_1 observed observed observed
-```
 
 The model does not fill all missing edge values independently. Instead, it fills from the observed boundary outward.
 
@@ -547,11 +541,9 @@ missing_2 second
 missing_3 third
 ```
 
-where `missing_1` is always the missing value closest to the observed region.
+where `missing_1` is always the missing value closest to the observed region. This matters because once `missing_1` is predicted, it becomes __"context"__ for predicting `missing_2`.
 
-This matters because once `missing_1` is predicted, it becomes context for predicting `missing_2`.
-
-The edge prediction uses three separate components:
+As shown in the initial pipeline diagram, the edge prediction uses three separate components as mentioned below and later are combined as an ensemble with weights decided using a grid search paired with the `cv_validation_system`. The three methods' indepth explanation follows this section.
 
 ```text
 primary
@@ -571,73 +563,56 @@ The final edge prediction is:
 0.14\hat{y}_{\mathrm{quadratic}}
 ```
 
-The primary model dominates. The corrected and quadratic models act as small stabilizers.
+#
+Each of the 3 sections that follow now contain first the python function that implements that part of the logic and then explains the core logic. 
 
 ---
 
 ## 4.7 Primary Edge Predictor
 
-The primary edge predictor is implemented by:
+The primary edge predictor, is implemented by:
 
-```python
-collect_edge_training_points_primary
-predict_edge_primary_local_poly
-```
 
-This is the main progressive edge model.
+`collect_edge_training_points_primary`\
+`predict_edge_primary_local_poly`
+
 
 ### 4.7.1 What Training Points It Uses
 
-For an edge target, the function first identifies:
+For an edge target, the function first identifies - `side`, `block_cols`, and `position`, where:
 
 ```text
-side
-block_cols
-position
-```
-
-where:
-
-```text
-side       = left or right edge
+side = left or right edge
 block_cols = all missing columns in that edge block, ordered by fill order
-position   = current missing value's index inside that edge block
+position = current missing value's index inside that edge block
 ```
 
 Then it builds observed training points from the valid side of the smile.
 
+That is, 
 If the target is on the right edge, only observed strikes smaller than the target strike are used:
-
 ```python
 base = obs[obs["strike"] < target_strike].sort_values("strike")
 ```
-
 This corresponds to:
-
 ```text
 observed observed observed target
 ```
 
-If the target is on the left edge, only observed strikes larger than the target strike are used:
-
+And if the target is on the left edge, only observed strikes larger than the target strike are used:
 ```python
 base = obs[obs["strike"] > target_strike].sort_values("strike")
 ```
-
 This corresponds to:
-
 ```text
 target observed observed observed
 ```
 
 For each observed point, the training coordinate is:
-
 ```math
 x_i = \frac{K_i}{S}
 ```
-
 and:
-
 ```math
 y_i = \mathrm{IV}_i
 ```
