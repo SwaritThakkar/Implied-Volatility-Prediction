@@ -154,7 +154,7 @@ $$
 For each candidate:
 
 $$
-\operatorname{MSE}(h)
+\text{MSE}(h)
 = \frac{1}{n}\sum_i
 \left(\hat{y}_{-i}(x_i;h)-y_i\right)^2
 $$
@@ -162,7 +162,7 @@ $$
 and:
 
 $$
-h^\star = \arg\min_h \operatorname{MSE}(h)
+h^\star = \arg\min_h \text{MSE}(h)
 $$
 
 After local WLS, the model tries shape-preserving PCHIP interpolation. PCHIP is used only when the target lies inside the observed range, never for extrapolation.
@@ -211,7 +211,7 @@ and selects:
 
 $$
 (d^\star,h^\star)
-= \arg\min_{d,h}\operatorname{LOO\_MSE}(d,h)
+= \arg\min_{d,h}\text{LOO\_MSE}(d,h)
 $$
 
 The final edge ensemble is:
