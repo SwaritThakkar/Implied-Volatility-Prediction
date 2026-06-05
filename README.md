@@ -112,7 +112,7 @@ edge wing: the missing value was not surrounded by non-missing values on both si
 Clearly, interior gaps are safer and easier to predict because there are observed strikes on both sides. However edge wings are harder and not accurate because the model has to extend the smile beyond the observed support, without regression on the other side.
 
 ## 3. Final IV Surfaces
-Before moving on to the actual solution part, this section presents the results on a 3d graph of strike, time to expiry and iv. 
+Before moving on to the actual solution part, this section presents the results on a 3D graph of strike, time to expiry, and iv. 
 
 These surfaces are generated from the final filled dataset produced by `final_submission.py`. The small bright dots represent IV values that were already present in the original dataset. The smooth surface represents the completed IV surface after the final method inferred the missing cells.
 
@@ -128,7 +128,7 @@ One more thing to notics is that for each row, CE (call) values are filled using
 
 
 ## 4. Filling Logic
-
+This section discusses a lot of the function definitions of the imputure that contribute as helper functions to the main logic.
 The distinction of classifying a missing value as `interior` and `edge` is the main structural choice in the final solution (compared to some of the earlier trials). 
 
 Interior gaps are handled with local weighted regression plus PCHIP interpolation in an ensemble. Edge gaps are handled with progressive extrapolation and an edge ensemble of three methods that we will discuss in this section.
@@ -193,20 +193,10 @@ flowchart TD
     class R blend;
     class L final;
 ```
-
+#
 
 ### 4.1 Metadata Parsing
-
-The option columns have names containing:
-
-```text
-underlying
-expiry
-strike
-option type
-```
-
-The function `parse_metadata(df)` extracts this information using the regex:
+In accordance with the metadata naming mentioned in the PS, the function `parse_metadata(df)` extracts this information using the regex:
 
 ```python
 r"^(?P<underlying>[A-Z]+)"
@@ -226,7 +216,7 @@ option type: CE or PE
 expiry date
 ```
 
-This creates three important maps:
+And creates three important maps that are used everywhere ahead:
 
 ```python
 strike_map = dict(zip(meta["column"], meta["strike"]))
@@ -236,12 +226,8 @@ cols_by_type = {
     "PE": [all PE columns],
 }
 ```
-
-These maps are used everywhere in the filling logic.
-
-The model never treats all 28 options as one unordered vector. It knows which contracts are calls, which are puts, and what strike each contract belongs to.
-
-### 4.2 Same-Row Smile Construction
+#
+### 4.2 Same-Row Data Collection
 
 For a given row and option type, the function `collect_same_row_points` collects all observed IV values of that option type at that timestamp.
 
@@ -250,18 +236,10 @@ For example, if the target is a missing CE value, it collects only observed CE v
 The function returns:
 
 ```text
-x_obs      = observed moneyness values
+x_obs      = observed moneyness values (K/S)
 y_obs      = observed IV values
 used_cols  = option columns used as training points
 ```
-
-The moneyness coordinate is:
-
-```math
-x_i = \frac{K_i}{S}
-```
-
-where `K_i` is the strike of the observed option and `S` is the underlying price at the timestamp.
 
 So the training data for one row becomes:
 
@@ -276,10 +254,10 @@ x_i = strike / underlying price
 y_i = observed implied volatility
 ```
 
-This is the cross-sectional smile used for prediction.
-
+Now, this training data is then used for prediction across a cross-section.
+#
 ### 4.3 Detecting Interior Values and Edge Values
-
+This is the block that acts as the classifier. This block assigns a the class of `edge` or `interior` which will be used in the code ahead.
 The function `get_same_side_state` builds a sorted table for one timestamp and one option type:
 
 ```text
@@ -289,7 +267,7 @@ is_missing
 iv
 ```
 
-It sorts by strike. This converts the row into a one-dimensional smile layout.
+It sorts by strike and thus converts the row into a one-dimensional vector as exemplified below.
 
 For example:
 
@@ -300,37 +278,21 @@ observed:   yes     yes      no      yes      no      no
 
 The function `get_edge_blocks` checks missing values at the two ends.
 
-A left-edge block looks like:
+As an example, a left-edge block looks like this -  
+ `missing missing observed observed observed`
 
-```text
-missing missing observed observed observed
-```
+While, a right-edge block looks like this -  
+ `observed observed observed missing missing`
 
-A right-edge block looks like:
+The code is such that the fill order is stored carefully, in a proper order based on the side it is on. In other words, the model fills the missing value closest to the observed boundary first. That is - 
 
-```text
-observed observed observed missing missing
-```
-
-The code stores fill order carefully.
-
-For the left edge:
-
+For the left and right edges:
 ```python
 left_fill_order = list(reversed(left_block))
-```
-
-This means the model fills the missing value closest to the observed boundary first.
-
-For the right edge:
-
-```python
 right_fill_order = list(reversed(right_block))
 ```
 
-Again, this makes the fill order go from the observed boundary outward.
-
-The function `is_edge_missing` then decides whether a target missing cell is:
+Then, the function `is_edge_missing` then decides whether a target missing cell is:
 
 ```text
 left edge
@@ -338,51 +300,33 @@ right edge
 all missing same side
 not edge
 ```
-
-If it is not an edge, it is treated as an interior value.
-
-This classification is critical because interpolation and extrapolation are very different problems.
-
+#
 ### 4.4 Fill Order
 
 The function `build_missing_cell_fill_order` creates the final order in which missing values are filled.
 
-For every row and for each option type, it orders missing values like this:
+For every row and for each option type, it orders missing values in the format shown below. This is so as to ensure that filling of missing values is done based on the order shown vissualised in [section 5 - Progressive Edge Filling](#5-progressive-edge-filling)
 
 ```text
 left edge block, nearest boundary first
 interior missing values, in strike order
 right edge block, nearest boundary first
 ```
-
-In code, the order is:
-
+In code, this is implemented using -
 ```python
 ordered = list(left_fill) + interior + [c for c in right_fill if c not in left_fill]
 ```
-
-This ensures that edge values are filled progressively. Later edge predictions can use earlier edge predictions from the same missing block.
 
 ---
 
 ## 4.5 Interior Cell Prediction
 
-Interior cells are missing values that lie inside the observed smile support. For these, the model uses a blend of:
+As mentioned earlier, `interior cells` are missing values that lie inside the observed smile support. For these, the model uses a blend of `local quadratic weighted least squares` and `PCHIP interpolation`. 
 
-```text
-local quadratic weighted least squares
-PCHIP interpolation
-```
-
-The function responsible for this is:
-
-```python
-predict_non_edge_local_poly
-```
 
 ### 4.5.1 Local Quadratic Weighted Least Squares
 
-For target moneyness `x_0`, the model fits a local quadratic around the target:
+For target moneyness `x_0`, the model fits a __local quadratic__ around the target:
 
 ```math
 y_i
@@ -459,20 +403,18 @@ The code solves this using:
 np.linalg.solve(X.T @ WX, X.T @ (weights * y_obs))
 ```
 
-If the linear system is singular, the code falls back to a weighted average:
+Its good to note here that, if the linear system is singular, the code falls back to a weighted average:
 
 ```python
 (weights @ y_obs) / weights.sum()
 ```
 
-This fallback makes the method robust on small or unstable rows.
+### 4.5.2 Bandwidth Selection by Leave-One-Out Method (LOO Method)
 
-### 4.5.2 Bandwidth Selection by Leave-One-Out
+The bandwidth is selected by leave-one-out cross-validation inside the same row. The values that the bandwidth goes over is known as the grid (This is a grid-search problem). 
+This grid is obtained by first running a wide grid search and eventually narrowing it down to these values. 
 
-The bandwidth is selected by leave-one-out cross-validation inside the same row.
-
-The grid is:
-
+The selected grid turned out to be: 
 ```python
 BANDWIDTH_GRID = np.array([5e-5, 7e-5, 1e-4, 1.5e-4, 2e-4])
 ```
@@ -513,31 +455,17 @@ best_bw, loo_mse = select_bandwidth_by_loo(x_obs, y_obs, BANDWIDTH_GRID)
 base_pred = local_poly_wls_pred(x_obs, y_obs, x_target, best_bw, degree=2)
 ```
 
-So the local WLS part is not using a fixed smoothness level. It adapts per row.
+Again, we note here that the bandwidth is selected per row, and not for the entire timeframe. This is because of the two regimes (pre 27 and 27th jan) existing. We make sure to not select very different bandwidths so as to increase robustness and overfitting. As the theory/observations suggest (there existing two different regimes, and thus a need for different weight selection), I also validated this during the competition, which evidently reduced the MSE. 
 
 ### 4.5.3 PCHIP Interpolation
 
 After the local quadratic WLS prediction, the model also computes a PCHIP prediction.
 
-PCHIP stands for Piecewise Cubic Hermite Interpolating Polynomial.
+PCHIP is a famous interpolation methods that stands for Piecewise Cubic Hermite Interpolating Polynomial. I used this because I wanted to introduce a cubic term (as I already had a quadratic term). Also, another benefit of PCHIP is that it is shape-preserving. A normal cubic spline can overshoot between points when the smile has sharp bends. However, PCHIP is more conservative because it tries to preserve the local monotonicity and shape of the data. 
 
-The function is:
-
-```python
-pchip_same_row_pred
-```
-
-PCHIP is used only if:
-
-```text
-scipy is available
-there are at least 4 valid observed points
-the target is inside the observed moneyness range
-the interpolation result is finite
-```
+We note that PCHIP is used only if if there are atleast 4 neighbours available. 
 
 The important safety rule is:
-
 ```python
 if not (x[0] <= x_target <= x[-1]):
     return np.nan
@@ -545,10 +473,7 @@ if not (x[0] <= x_target <= x[-1]):
 
 So PCHIP is never used for extrapolation. It is only used for interior interpolation.
 
-The reason for using PCHIP is that it is shape-preserving. A normal cubic spline can overshoot between points, especially when the smile has sharp bends. PCHIP is more conservative because it tries to preserve the local monotonicity and shape of the data.
-
 Before fitting PCHIP, the code:
-
 1. Filters non-finite values.
 2. Sorts points by moneyness.
 3. Collapses duplicate moneyness values by averaging their IVs.
@@ -560,8 +485,7 @@ The PCHIP prediction is:
 ```math
 \hat{y}_{\mathrm{PCHIP}}(x_0)
 ```
-
-The final interior prediction is a blend:
+Now, the final interior prediction is a blend:
 
 ```math
 \hat{y}_{\mathrm{interior}}
@@ -584,6 +508,8 @@ PCHIP_INTERIOR_WEIGHT = 0.25
 ```
 
 If PCHIP is unavailable or invalid, the model uses only the WLS prediction.
+
+We note here that I used a weight of `0.25` because PCHIP on its own was bad, and the WLS (Weighted Least Squares) Method was better than PCHIP. It is clear that using PCHIP alone is worse intrisically because of the pieces being cubic, thus can sometimes violate the no-arbitrage conditions. I validated this us
 
 ---
 
