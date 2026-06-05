@@ -35,7 +35,7 @@ MIN_PCHIP_POINTS = 4
 
 
 CFG_DATA       = str(DEFAULT_DATA_PATH)
-CFG_OUT_PREFIX = "try_final_pchip_interior"
+CFG_OUT_PREFIX = "final"
 
 def parse_args():
     import types, sys

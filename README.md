@@ -9,7 +9,7 @@ final_submission.py
 That is the file I am submitting. It fills the missing implied-volatility values and writes the final submission file:
 
 ```text
-submission_try_final_pchip_interior.csv
+submission_final.csv
 ```
 
 Run it from the repository root:
@@ -21,13 +21,18 @@ python final_submission.py --data everything_else/cv_validation_system/dataset.c
 It produces:
 
 ```text
-filled_dataset_try_final_pchip_interior.csv
-submission_try_final_pchip_interior.csv
-diagnostics_try_final_pchip_interior.csv
-cross_section_diagnostics_try_final_pchip_interior.csv
+filled_dataset_final.csv
+submission_final.csv
+diagnostics_final.csv
+cross_section_diagnostics_final.csv
 ```
 
-On the final full dataset run, the script filled `5,460` missing IV cells and left `0` missing values in the completed dataset.
+On the final full dataset run, the script filled `5,460` missing IV cells and left `0` missing values in the completed dataset. I've stored the 4 generater files in the folder:
+```text
+submission_files
+```
+
+Before moving further, I would like to explain a bit about Implied Volatility 
 
 ## Table Of Contents
 
@@ -42,9 +47,9 @@ On the final full dataset run, the script filled `5,460` missing IV cells and le
 - [9. Function Map](#9-function-map)
 - [10. Rebuilding Figures](#10-rebuilding-figures)
 
-## 1. Dataset EDA
+## 1. Dataset EDA (Exploratory Data Analysis)
 
-The original dataset is an option surface observed through time. It has `975` timestamp rows, `28` option contracts, and `5,460` missing IV cells, exactly `20%` of the option grid.
+The original dataset is an option surface for the __Nifty50__ options chain expiring on 27th Jan 2026. It has `975` timestamp rows, `28` option contracts (14 Put options and 14 Call options), and `5,460` missing IV (Implied Volatility) cells, which is exactly `20%` of the option grid.
 
 The first important observation is that this is not one smooth time regime. Most days from Jan 7 to Jan 23 have low, stable IV. Jan 27 is different: it is the expiry-day regime. The daily average observed IV jumps to about `0.753`, and the cross-strike dispersion jumps to about `0.320`.
 
