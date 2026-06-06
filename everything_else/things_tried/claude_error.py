@@ -7,7 +7,7 @@ import pandas as pd
 
 
 DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 OUT_PATH = Path("error_dashboard.html")

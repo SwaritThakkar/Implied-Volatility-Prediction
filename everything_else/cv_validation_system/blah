@@ -1,4 +1,4 @@
 python cv_validation_system/evaluate_cv_predictions_with_heatmaps.py \
-  --truth cv_validation_system/cv_split/holdout_truth.csv \
+  --truth everything_else/cv_validation_system/cv_split/holdout_truth.csv \
   --pred filled_test.csv \
   --out-dir cv_eval_results

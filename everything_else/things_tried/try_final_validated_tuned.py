@@ -24,7 +24,7 @@ This keeps the original try_final logic as the fallback. If validation finds no
 improvement, it uses the exact original defaults.
 
 Run:
-    python try_final_validated_tuned.py --data cv_validation_system/dataset.csv
+    python try_final_validated_tuned.py --data dataset.csv
 
 Outputs:
     filled_dataset_try_final_validated_tuned.csv
@@ -56,7 +56,7 @@ except Exception:
 # ---------------------------------------------------------------------
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV = 1e-6

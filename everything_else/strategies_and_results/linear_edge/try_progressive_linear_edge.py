@@ -35,7 +35,7 @@ No cross-option-type transfer.
 
 Run
 ---
-    python try_progressive_linear_edge.py --data cv_validation_system/dataset.csv
+    python try_progressive_linear_edge.py --data dataset.csv
 
 Outputs
 -------
@@ -59,7 +59,7 @@ from tqdm import tqdm
 # ---------------------------------------------------------------------
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/cv_split/not_dataset.csv"
+    "everything_else/cv_validation_system/cv_split/not_dataset.csv"
 )
 
 EPS_IV = 1e-6

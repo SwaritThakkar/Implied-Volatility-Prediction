@@ -62,7 +62,7 @@ EXPIRY_DAY = pd.Timestamp("2026-01-27").date()
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Plot 27 Jan IV 3D surface.")
-    parser.add_argument("--data", type=str, default="/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv", help="Path to dataset.csv or not_dataset.csv.")
+    parser.add_argument("--data", type=str, default="dataset.csv", help="Path to dataset.csv or not_dataset.csv.")
     parser.add_argument("--out-dir", type=str, default="eda_27jan_iv_3d_surface", help="Output directory.")
     parser.add_argument("--grid-time", type=int, default=120, help="Grid resolution on timestamp axis.")
     parser.add_argument("--grid-moneyness", type=int, default=120, help="Grid resolution on moneyness axis.")

@@ -43,7 +43,7 @@ versus the active M3 local-poly adaptive family, which used a weaker edge rule.
 
 Run
 ---
-    python try.py --data cv_validation_system/dataset.csv
+    python try.py --data dataset.csv
 
 Outputs
 -------
@@ -66,7 +66,7 @@ from tqdm import tqdm
 # Configuration
 # ---------------------------------------------------------------------
 
-DEFAULT_DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv")
+DEFAULT_DATA_PATH = Path("dataset.csv")
 
 EPS_IV = 1e-6
 SEPARATOR = "||"

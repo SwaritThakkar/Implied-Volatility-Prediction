@@ -197,7 +197,7 @@ def choose_holdout(candidates, df, meta, seed, holdout_frac, min_remaining_per_r
             if len(selected) >= target_n:
                 break
 
-            g_indices = g.index.to_numpy()
+            g_indices = g.index.to_numpy(copy=True)
             rng.shuffle(g_indices)
 
             taken_in_group = 0

@@ -37,7 +37,7 @@ import matplotlib.dates as mdates
 from matplotlib.widgets import Slider, Button, RadioButtons
 
 
-DATA_PATH = Path("what_worked/dataset.csv")
+DATA_PATH = Path("dataset.csv")
 # If your file is in the same directory as this script, use:
 # DATA_PATH = Path("dataset.csv")
 

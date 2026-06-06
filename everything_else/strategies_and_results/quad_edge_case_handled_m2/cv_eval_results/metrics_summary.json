@@ -13,8 +13,8 @@
     "p99_abs_error": 0.08205571018268272,
     "n_unscored_bad_rows": 0,
     "prediction_file": "filled_test.csv",
-    "truth_file": "cv_validation_system/cv_split/holdout_truth.csv",
-    "base_file": "cv_validation_system/cv_split/not_dataset.csv"
+    "truth_file": "everything_else/cv_validation_system/cv_split/holdout_truth.csv",
+    "base_file": "everything_else/cv_validation_system/cv_split/not_dataset.csv"
   },
   "smile_plot_info": {
     "timestamp_smile_metrics_file": "cv_eval_results/group_metrics_by_timestamp_smile.csv",

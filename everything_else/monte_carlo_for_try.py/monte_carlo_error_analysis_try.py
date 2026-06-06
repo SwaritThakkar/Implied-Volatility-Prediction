@@ -47,7 +47,7 @@ except Exception:
     HAS_PLOTLY = False
 
 
-DEFAULT_DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv")
+DEFAULT_DATA_PATH = Path("dataset.csv")
 EPS_IV = 1e-6
 SEPARATOR = "||"
 

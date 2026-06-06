@@ -27,7 +27,7 @@ Why bucket-level, not row-level:
     Jan27/non-Jan27 to behave differently.
 
 Run:
-    python try_final_pchip_bucket.py --data cv_validation_system/dataset.csv
+    python try_final_pchip_bucket.py --data dataset.csv
 
 Outputs:
     filled_dataset_try_final_pchip_bucket.csv
@@ -56,7 +56,7 @@ except Exception:
 # ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV    = 1e-6

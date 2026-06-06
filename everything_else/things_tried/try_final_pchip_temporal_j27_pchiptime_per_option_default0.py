@@ -17,7 +17,7 @@ New experiment added:
     - Non-Jan27 interiors are not touched.
 
 Run:
-    python try_final_pchip_temporal_j27_pchiptime_per_option.py --data cv_validation_system/dataset.csv
+    python try_final_pchip_temporal_j27_pchiptime_per_option.py --data dataset.csv
 
 Outputs:
     filled_dataset_try_final_pchip_temporal_j27_pchiptime.csv
@@ -45,7 +45,7 @@ except Exception:
 # ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV    = 1e-6

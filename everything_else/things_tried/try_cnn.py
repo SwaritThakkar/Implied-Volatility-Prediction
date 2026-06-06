@@ -59,7 +59,7 @@ Hui (2023) improvements applied
 ─────────────────────────────────────────────────────────────────────
 Run
 ─────────────────────────────────────────────────────────────────────
-    python try_cnn.py --data cv_validation_system/dataset.csv
+    python try_cnn.py --data dataset.csv
 
 Outputs:  filled_dataset_try_cnn.csv  submission_try_cnn.csv
           diagnostics_try_cnn.csv     cnn_model_fold*.pt
@@ -85,7 +85,7 @@ warnings.filterwarnings("ignore")
 # ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV   = 1e-6

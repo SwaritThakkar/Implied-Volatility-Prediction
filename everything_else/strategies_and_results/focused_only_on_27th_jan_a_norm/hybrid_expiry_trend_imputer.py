@@ -37,7 +37,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/what_worked/dataset.csv")
+DATA_PATH = Path("dataset.csv")
 
 EXPIRY_DAY = pd.Timestamp("2026-01-27").date()
 
@@ -78,12 +78,12 @@ BLEND_GRID_BY_TYPE = {
     ], dtype=float),
 }
 
-FILLED_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/filled_dataset_hybrid_expiry_trend.csv")
-SUBMISSION_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/submission_hybrid_expiry_trend.csv")
-DIAGNOSTICS_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/diagnostics_hybrid_expiry_trend.csv")
-A_WEIGHTS_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/a_weights_27jan.csv")
-CROSS_DIAGNOSTICS_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/cross_section_diagnostics_hybrid_expiry_trend.csv")
-TIME_DIAGNOSTICS_OUT = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/strategies_and_results/focused_only_on_27th_jan/time_model_diagnostics_hybrid_expiry_trend.csv")
+FILLED_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/filled_dataset_hybrid_expiry_trend.csv")
+SUBMISSION_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/submission_hybrid_expiry_trend.csv")
+DIAGNOSTICS_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/diagnostics_hybrid_expiry_trend.csv")
+A_WEIGHTS_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/a_weights_27jan.csv")
+CROSS_DIAGNOSTICS_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/cross_section_diagnostics_hybrid_expiry_trend.csv")
+TIME_DIAGNOSTICS_OUT = Path("everything_else/strategies_and_results/focused_only_on_27th_jan_a_norm/time_model_diagnostics_hybrid_expiry_trend.csv")
 
 
 def parse_metadata(df: pd.DataFrame) -> pd.DataFrame:

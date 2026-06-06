@@ -35,7 +35,7 @@ Everything else is identical to try.py.
 
 Run
 ---
-    python try_final.py --data cv_validation_system/dataset.csv
+    python try_final.py --data dataset.csv
 
 Outputs
 -------
@@ -58,7 +58,7 @@ from tqdm import tqdm
 # Configuration
 # ─────────────────────────────────────────────────────────────────────
 
-DEFAULT_DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/cv_split/not_dataset.csv")
+DEFAULT_DATA_PATH = Path("everything_else/cv_validation_system/cv_split/not_dataset.csv")
 
 EPS_IV    = 1e-6
 SEPARATOR = "||"

@@ -1,5 +1,5 @@
 {
-  "input": "/mnt/data/cv_validation_system/dataset.csv",
+  "input": "dataset.csv",
   "seed": 42,
   "holdout_frac": 0.12,
   "min_remaining_per_row_type": 6,

@@ -4,56 +4,60 @@ This README file is the __project report__ for IITR Finclub Open Projects 2026 P
 
 Implied volatility (IV) measures how much the market believes the price of a stock (or other underlying asset) will move in the future. In practice, IV is one of the most important quantities in options markets because it captures the market’s expectations of future uncertainty and typically varies across strikes, forming structures known as __volatility smiles__ or __volatility skews__.
 
-The objective of this project is to reconstruct a partially observed implied-volatility surface. Rather than treating the task as generic missing-value problem, I approach the problem as a cross-sectional structure prediction problem. My final submission (final_submission.py) does not take into account any temporal dependencies, as I found that for this particular problem, cross-sectional structure across moneyness and IV generate high quality signals.
+The objective of this project is to reconstruct a partially observed implied-volatility surface. Rather than treating the task as generic missing-value problem, I approach the problem as a cross-sectional structure prediction problem. My final submission ([final_submission.py](final_submission.py)) does not take into account any temporal dependencies, as I found that for this particular problem, cross-sectional structure across moneyness and IV generate high quality signals.
 
 The remainder of this README is organized as follows. First, I present exploratory analysis of the dataset motivating the modeling decisions. Next, I describe the final methodology, including the interpolation and extrapolation procedures used for interior and edge regions of the smile, which was critical in reducing overall mse. I then present diagnostics, validation results, and finally, comparisons against alternative approaches (some of which were very promising and innovative), which unfortunately did not work for this dataset.
 
-Before moving to the solution, the repository is centered around one file:
+Before moving to the solution, the repository is centered around one file: [final_submission.py](final_submission.py).
+
+That is the file I am submitting. It fills the missing implied-volatility values and writes the final submission file: [submission_final.csv](submission_files/submission_final.csv).
+
+To run it from the repository root, run the following in terminal or run the [final_submission.py](final_submission.py) file:
 
 ```bash
-final_submission.py
+python final_submission.py --data dataset.csv 
 ```
 
-That is the file I am submitting. It fills the missing implied-volatility values and writes the final submission file:
+It produces [filled_dataset_final.csv](submission_files/filled_dataset_final.csv), [submission_final.csv](submission_files/submission_final.csv), [diagnostics_final.csv](submission_files/diagnostics_final.csv), and [cross_section_diagnostics_final.csv](submission_files/cross_section_diagnostics_final.csv).
 
-```text
-submission_final.csv
-```
+On the final full dataset run, the script filled `5,460` missing IV cells. I've stored the 4 generated files in the folder [submission_files/](submission_files/).
 
-To run it from the repository root, run the following in terminal or run the final_submission.py file:
-
-```bash
-python final_submission.py --data everything_else/cv_validation_system/dataset.csv 
-```
-
-It produces:
-
-```text
-filled_dataset_final.csv
-submission_final.csv
-diagnostics_final.csv
-cross_section_diagnostics_final.csv
-```
-
-On the final full dataset run, the script filled `5,460` missing IV cells. I've stored the 4 generated files in the folder:
-```text
-submission_files
-```
-
-The rest of the directory contains submission files, eda files, validation system files that I used during the competition. All the files in the folder "everything_else" helped me make the final submission.
+The rest of the directory contains submission files, eda files, validation system files that I used during the competition. All the files in the folder [everything_else/](everything_else/) helped me make the final submission.
 
 ## Table Of Contents
 
-- [1. Dataset Visualisation/EDA](#1-dataset-eda)
-- [2. Problem Reduction](#2-final-idea)
+- [1. Dataset EDA / Visualisation](#1-dataset-eda-exploratory-data-analysis--visualisation)
+- [2. Problem Reduction](#2-problem-reduction)
 - [3. Final IV Surfaces](#3-final-iv-surfaces)
 - [4. Filling Logic](#4-filling-logic)
-- [5. Progressive Edge Filling](#5-progressive-edge-filling)
-- [6. Diagnostics](#6-diagnostics)
-- [7. Synthetic CV Validation](#7-synthetic-cv-validation)
-- [8. What I Tried](#8-what-i-tried)
-- [9. Function Map](#9-function-map)
-- [10. Rebuilding Figures](#10-rebuilding-figures)
+  - [4.1 Metadata Parsing](#41-metadata-parsing)
+  - [4.2 Same-Row Data Collection](#42-same-row-data-collection)
+  - [4.3 Detecting Interior Values and Edge Values](#43-detecting-interior-values-and-edge-values)
+  - [4.4 Fill Order](#44-fill-order)
+  - [4.5 Interior Cell Prediction](#45-interior-cell-prediction)
+  - [4.6 Edge Cell Prediction](#46-edge-cell-prediction)
+  - [4.7 Primary Edge Predictor](#47-primary-edge-predictor)
+  - [4.8 Secondary Edge Predictor](#48-secondary-edge-predictor)
+  - [4.9 Nearby Edge Predictor](#49-nearby-edge-predictor)
+  - [4.10 Final Edge Ensemble](#410-final-edge-ensemble)
+- [5. Diagnostics](#5-diagnostics)
+- [6. Synthetic CV Validation and MC analysis](#6-synthetic-cv-validation-and-mc-analysis)
+  - [Monte Carlo Synthetic CV Robustness](#monte-carlo-synthetic-cv-robustness)
+- [7. What I Tried](#7-what-i-tried)
+- [8. Directory Structure](#8-directory-structure)
+- [9. Future Improvements](#9-future-improvements)
+
+Quick repository links:
+[final submission script](final_submission.py) |
+[dataset](dataset.csv) |
+[final outputs](submission_files/) |
+[README figure generator](for_generating_readme/generate_readme_eda.py) |
+[edge diagram generator](for_generating_readme/generate_edge_component_images.py) |
+[Monte Carlo CV runner](for_generating_readme/run_monte_carlo_cv.py) |
+[synthetic CV system](everything_else/cv_validation_system/) |
+[EDA folder](everything_else/eda/) |
+[things tried](everything_else/things_tried/) |
+[strategy archive](everything_else/strategies_and_results/)
 
 ## 1. Dataset EDA (Exploratory Data Analysis) / Visualisation
 
@@ -77,7 +81,7 @@ Further analysis of Raw smiles make the regime shift obvious by observing the sc
 
 This EDA is the reason I trusted same-timestamp smile structure more than a global time-series smoother. Although the lag-1 EDA showed high adjacent-time correlation Jan 27 has much larger IV changes for the lag-1 signal to effectively capture (or atleast that's what I found).
 
-Further EDA files can be found in the folder `everything_else/eda`
+Further EDA files can be found in the folder [everything_else/eda/](everything_else/eda/), especially the interactive surface and dashboard scripts such as [iv_moneyness_time_slider_matplotlib_missing.py](everything_else/eda/iv_moneyness_time_slider_matplotlib_missing.py), [iv_contract_time_series_dashboard.py](everything_else/eda/iv_contract_time_series_dashboard.py), and [nifty_iv_surface_comprehensive_eda.ipynb](everything_else/eda/nifty_iv_surface_comprehensive_eda.ipynb).
 
 
 ## 2. Problem reduction 
@@ -114,13 +118,15 @@ Clearly, interior gaps are safer and easier to predict because there are observe
 ## 3. Final IV Surfaces
 Before moving on to the actual solution part, this section presents the results on a 3D graph of strike, time to expiry, and iv. 
 
-These surfaces are generated from the final filled dataset produced by `final_submission.py`. The small bright dots represent IV values that were already present in the original dataset. The smooth surface represents the completed IV surface after the final method inferred the missing cells.
+These surfaces are generated from the final filled dataset produced by [final_submission.py](final_submission.py). The small bright dots represent IV values that were already present in the original dataset. The smooth surface represents the completed IV surface after the final method inferred the missing cells. The filled dataset itself is stored at [submission_files/filled_dataset_final.csv](submission_files/filled_dataset_final.csv).
 
 ![Final CE IV surface](for_generating_readme/iv_surface_ce_3d.png)
 
 ![Final PE IV surface](for_generating_readme/iv_surface_pe_3d.png)
 
 ![Combined CE and PE IV surfaces](for_generating_readme/iv_surface_combined_3d.png)
+
+The interactive versions of these surfaces are also stored as [CE HTML](for_generating_readme/iv_surface_ce_3d.html), [PE HTML](for_generating_readme/iv_surface_pe_3d.html), and [combined HTML](for_generating_readme/iv_surface_combined_3d.html).
 
 As mentioned before, the final surface is not generated by fitting one global model to all timestamps. Instead, each timestamp is treated as its own cross-sectional option smile. This matters because the IV surface is not stationary across time. The expiry-day regime, especially Jan 27, has much steeper and noisier IV behavior than the earlier dates as clearly visible from the graph(s) above.
 
@@ -164,15 +170,15 @@ flowchart TD
     G -- No, interior gap --> H[Interior prediction engine]
     H --> I[Local quadratic WLS]
     I --> J[PCHIP interpolation]
-    J --> K[Blend: 0.75 WLS + 0.25 PCHIP]
+    J --> K[Blend: 0.5 WLS + 0.5 PCHIP]
     K --> L[Final predicted IV]
 
     G -- Yes, edge wing --> M[Edge prediction engine]
     M --> N[Progressive filling from boundary]
     N --> O[Primary prediction]
-    N --> P[Corrected prediction]
-    N --> Q[Quadratic prediction]
-    O --> R[Blend: 0.72 primary + 0.14 corrected + 0.14 quadratic]
+    N --> P[Secondary prediction]
+    N --> Q[Nearby prediction]
+    O --> R[Blend: 0.7 primary + 0.15 secondary + 0.15 nearby]
     P --> R
     Q --> R
     R --> L
@@ -305,7 +311,7 @@ not edge
 
 The function `build_missing_cell_fill_order` creates the final order in which missing values are filled.
 
-For every row and for each option type, it orders missing values in the format shown below. This is so as to ensure that filling of missing values is done based on the order shown vissualised in [section 5 - Progressive Edge Filling](#5-progressive-edge-filling)
+For every row and for each option type, it orders missing values in the format shown below. This is so as to ensure that filling of missing values is done based on the order shown visualised in the progressive filling diagrams: [primary](for_generating_readme/edge_primary_sequence.png), [secondary](for_generating_readme/edge_secondary_sequence.png), and [nearby](for_generating_readme/edge_nearby_sequence.png).
 
 ```text
 left edge block, nearest boundary first
@@ -489,9 +495,9 @@ Now, the final interior prediction is a blend:
 ```math
 \hat{y}_{\mathrm{interior}}
 =
-0.75\hat{y}_{\mathrm{WLS}}
+0.5\hat{y}_{\mathrm{WLS}}
 +
-0.25\hat{y}_{\mathrm{PCHIP}}
+0.5\hat{y}_{\mathrm{PCHIP}}
 ```
 
 In code:
@@ -503,12 +509,13 @@ pred = (1.0 - PCHIP_INTERIOR_WEIGHT) * base_pred + PCHIP_INTERIOR_WEIGHT * pchip
 with:
 
 ```python
-PCHIP_INTERIOR_WEIGHT = 0.25
+PCHIP_INTERIOR_WEIGHT = 0.5
 ```
 
 If PCHIP is unavailable or invalid, the model uses only the WLS prediction.
 
-We note here that I used a weight of `0.25` because PCHIP on its own was bad, and the WLS (Weighted Least Squares) Method was better than PCHIP. It is clear that using PCHIP alone is worse intrisically because of the pieces being cubic, thus can sometimes violate the no-arbitrage conditions. I validated this using the `cv_validation_system` in the `everything_else` folder and saw PCHIP failing miserably in 1/2 rows, but outperforming in other. So as to prevent overfitting, I just took an ensemble instead of a signal based method selecting system.
+We note here that I used a weight of `0.5` so as to add robustness in the model. My intuition behind it was to incldue a cubic term along with a quadratic term (which is added by the LOO-WLS method). Fortunately, the combination worked as I validated from the actual submission mse on kaggle and by the [cv_validation_system](everything_else/cv_validation_system/) (which can be found in [everything_else/](everything_else/)). 
+The weights were not optimised using a parameter optimisation method so as to prevent any overfit. Nevertheless, I ran a script that did exactly that and found that the mse did not change significantly across the blend, thus making me choose robustness over a small improvement of MSE.   
 
 ---
 
@@ -543,12 +550,12 @@ missing_3 third
 
 where `missing_1` is always the missing value closest to the observed region. This matters because once `missing_1` is predicted, it becomes __"context"__ for predicting `missing_2`.
 
-As shown in the initial pipeline diagram, the edge prediction uses three separate components as mentioned below and later are combined as an ensemble with weights decided using a grid search paired with the `cv_validation_system`. The three methods' indepth explanation follows this section.
+As shown in the initial pipeline diagram, the edge prediction uses three separate components as mentioned below and later are combined as an ensemble with weights decided using a grid search paired with the [cv_validation_system](everything_else/cv_validation_system/). The three methods' indepth explanation follows this section.
 
 ```text
-primary
-corrected
-quadratic
+__primary__
+__secondary__
+__nearby__
 ```
 
 The final edge prediction is:
@@ -556,11 +563,11 @@ The final edge prediction is:
 ```math
 \hat{y}_{\mathrm{edge}}
 =
-0.72\hat{y}_{\mathrm{primary}}
+0.7\hat{y}_{\mathrm{primary}}
 +
-0.14\hat{y}_{\mathrm{corrected}}
+0.15\hat{y}_{\mathrm{secondary}}
 +
-0.14\hat{y}_{\mathrm{quadratic}}
+0.15\hat{y}_{\mathrm{nearby}}
 ```
 
 #
@@ -622,56 +629,150 @@ So the initial primary training set is:
 ```math
 \{(K_i/S,\ IV_i)\}
 ```
+__from the observed side of the smile.__
 
-from the observed side of the smile.
-
-### 4.7.2 Progressive Context
+### 4.7.2 Progressive Context (not really for this method)
 
 The primary predictor then adds earlier predictions from the same edge block.
 
 This part is controlled by:
-
 ```python
 prev = block_cols[:int(position)] if np.isfinite(position) else []
 ```
 
-So if the model is currently predicting the third missing value in an edge block, it can use the first two missing values that were already predicted.
+So if the model is currently predicting the third missing value in an edge block, it __can__ use the first two missing values that were already predicted. Note that in this method, we are not really using the previous predictions as we are setting `x:=0` and thus putting it in the beggining of the `x_i` series => getting very less weight. But it is important to note that we are still progressive in the sense that the weights of the same non-missing values are now different for each missing value (as the distance from target is increasing as we go out). We discuss this ahead with an example as well.
+Note - I kept the terminology of "progressive" so as to make the transition and connection between the 3 ensemble methods fluid.
 
 For each previous edge prediction:
-
 ```python
 pv = component_value(already_filled, pc, "primary")
 ```
 
 If that previous primary prediction is finite, the code appends:
-
 ```python
-x_t.append(float(pv))
+x_t.append(0.0) #this is the part which is unusual 
 y_t.append(float(pv))
 used.append(f"{pc}*as_xy")
 ```
 
-This is intentionally unusual. The previous prediction is inserted as both the `x` coordinate and the `y` value:
+As discussed previously, this is intentionally unusual. The previous prediction is stored as a `y` value, but its `x` coordinate is set to `0`. The answer to "Why we do this?" is answered ahead, but first we discuss what happens because of this -
+
+For a previously filled edge contract, the point inserted into the primary training set is:
+```math
+x_{\mathrm{dummy}} = 0
+```
+```math
+y_{\mathrm{dummy}} = \hat{y}_{\mathrm{prev,primary}}
+```
+
+This works because the local polynomial predictor is kernel weighted around the target moneyness. For a target point:
 
 ```math
-x_{\mathrm{prev}} = \hat{y}_{\mathrm{prev}}
+x_0 = \frac{K_0}{S}
 ```
+
+the weight attached to any training point `x_i` is:
 
 ```math
-y_{\mathrm{prev}} = \hat{y}_{\mathrm{prev}}
+w_i(x_0)
+=
+\exp\left(
+-
+\frac{(x_i-x_0)^2}{2h}
+\right)
 ```
 
-So the primary edge model uses previous edge predictions as a stabilizing progressive signal in the same numerical scale.
+where `h` is selected from:
 
-This is why the diagnostic label is:
-
-```text
-*as_xy
+```math
+h \in
+\left\{
+5\cdot 10^{-5},
+7\cdot 10^{-5},
+10^{-4},
+1.5\cdot 10^{-4},
+2\cdot 10^{-4}
+\right\}
 ```
 
-It means that the previous prediction was used as both the input coordinate and the output value in the primary edge component.
+For the option strikes in this dataset, moneyness is close to `1`, not close to `0`, thus a __"dummy"__ previous prediction at `x=0` is therefore extremely far away from any real target moneyness. If the target is, for example:
 
-This is not a standard mathematical extrapolation rule. It is a heuristic preserved because it performed well in validation during the project. The practical effect is that later edge points are gently anchored by earlier edge predictions instead of being extrapolated purely from far-away observed strikes.
+```math
+x_0 = 1.04
+```
+
+and the largest bandwidth is used:
+
+```math
+h = 2\cdot 10^{-4}
+```
+
+then clearly, the dummy point's weight is:
+
+```math
+w_{\mathrm{dummy}}
+=
+\exp\left(
+-
+\frac{(0-1.04)^2}{2(2\cdot10^{-4})}
+\right)
+=
+\exp(-2704)
+\approx 0
+```
+
+By contrast, a real observed point at `x=1.02` receives:
+```math
+w_{\mathrm{real}}
+=
+\exp\left(
+-
+\frac{(1.02-1.04)^2}{2(2\cdot10^{-4})}
+\right)
+=
+\exp(-1)
+\approx 0.3679
+```
+
+So the __"dummy"__ point is present in the training arrays, but it has almost no numerical influence on the local weighted fit. This was the key idea: the previous predictions are not allowed to influence the next predictions at all. I could've coded and implement this using a different, maybe more efficient way, but I chose this because it creates similarity between the 3 methods - `primary, secondary, and nearby`. It is neccessary to note here that I put x=0 just to __"remove"__ that from the training set for the "next" missing value. 
+
+Thus, the weighted least-squares fit being solved is:
+```math
+\min_{\beta}
+\sum_i
+w_i(x_0)
+\left(
+y_i
+-
+\sum_{j=0}^{d}
+\beta_j (x_i-x_0)^j
+\right)^2
+```
+
+Since:
+
+```math
+w_{\mathrm{dummy}} \approx 0
+```
+
+Thus,
+```math
+w_{\mathrm{dummy}}
+\left(
+y_{\mathrm{dummy}}
+-
+\sum_{j=0}^{d}
+\beta_j (0-x_0)^j
+\right)^2
+\approx
+0
+```
+
+This makes the primary edge predictor behave like a mostly pure __"observed-side"__ extrapolator. That is useful because if earlier predicted edge values are fed back at their true moneyness locations, later edge values can start chasing the model's own guesses. This component avoids that feedback loop by keeping previous predictions numerically harmless.
+
+We note that this is a well established mathematically sound method, just implemented in a different method. For more clarificaton, go to [-sectionlast](#add a last appendix to explain this). It is an emperical method executed by setting `x=0`. Thus, the primary component remains conservative by extrapolating mainly from observed same-side smile points, while the other edge components (`secondary` and `nearby`) provide the versions that __do use previous predictions__ at real moneyness locations.
+
+![Primary edge sequence](for_generating_readme/edge_primary_sequence.png)
 
 ### 4.7.3 Primary Prediction Model
 
@@ -680,24 +781,18 @@ After collecting primary training points, the model calls:
 ```python
 _edge_predict_with_deg_select
 ```
-
 This helper selects both:
-
 ```text
 degree d
 bandwidth h
 ```
-
-by leave-one-out validation.
+by leave-one-out (LOO) validation.
 
 The candidate degrees are:
-
 ```math
 d \in \{1,2\}
 ```
-
-The candidate bandwidths are:
-
+And the candidate bandwidths are:
 ```math
 h
 \in
@@ -711,7 +806,6 @@ h
 ```
 
 For each pair `(d,h)`, the code performs leave-one-out prediction on the edge training set:
-
 ```math
 \mathrm{LOO\_MSE}(d,h)
 =
@@ -721,7 +815,6 @@ For each pair `(d,h)`, the code performs leave-one-out prediction on the edge tr
 \hat{y}_{-i}(x_i;d,h)-y_i
 \right)^2
 ```
-
 Then it selects:
 
 ```math
@@ -731,50 +824,38 @@ Then it selects:
 \mathrm{LOO\_MSE}(d,h)
 ```
 
-The final primary prediction is:
 
+__Thus, the final primary prediction is:__
 ```math
 \hat{y}_{\mathrm{primary}}
 =
 \hat{y}(x_0;d^\star,h^\star)
 ```
 
-If the selected fit fails, it falls back to:
-
-```text
-bandwidth = 2e-4
-degree = 1
-```
-
-If that also fails, it falls back to the global median IV.
+If the selected fit fails, it falls back to ` bandwidth = 2e-4 and degree = 1 `. And, if that also fails, it falls back to the global median IV.
 
 ---
 
-## 4.8 Corrected Edge Predictor
+## 4.8 Secondary Edge Predictor
 
-The corrected edge predictor is implemented by:
+The "secondary" edge predictor is implemented by:
 
 ```python
-collect_edge_training_points_corrected
-predict_edge_corrected_local_poly
+collect_edge_training_points_secondary
+predict_edge_secondary_local_poly
 ```
 
-This predictor is similar to the primary predictor, but it changes how previous edge predictions are inserted.
-
-The corrected predictor uses the actual moneyness coordinate for previous predictions.
+This predictor is similar to the primary predictor, but it is critically different than the primary in the sense that this __DOES__ use the previous predictions during prediction of any missing value. That is - `where the primary predictor put x=0, the secondary puts x=x.`
 
 ### 4.8.1 What Training Points It Uses
 
-Like the primary predictor, the corrected predictor first uses observed values from the valid side.
+Like the primary predictor, the secondary predictor first uses observed values from the valid side.
 
 For a right edge, it uses observed strikes smaller than the target strike:
-
 ```python
 if side == "right" and s < target_strike:
 ```
-
 For a left edge, it uses observed strikes larger than the target strike:
-
 ```python
 if side == "left" and s > target_strike:
 ```
@@ -787,46 +868,37 @@ Each observed point is added as:
 "is_predicted": False
 ```
 
-Mathematically:
+Following the similarit from the primary model - 
 
 ```math
 x_i = \frac{K_i}{S}
-```
-
-```math
 y_i = \mathrm{IV}_i
 ```
 
-### 4.8.2 Corrected Progressive Context
+### 4.8.2 Secondary Progressive Context
+This part explains the implementation of the method.
 
-For previous predictions in the same edge block, the corrected model does this:
+In code, for previous predictions in the same edge block, the secondary model does this:
 
 ```python
-pv = component_value(already_filled, pc, "corrected")
+pv = component_value(already_filled, pc, "secondary")
 ```
-
-Then it appends:
-
+And then it __appends__:
 ```python
-"x": strike_map[pc] / spot
+"x": strike_map[pc] / spot #and not x=0
 "y": float(pv)
 "is_predicted": True
 ```
 
-So unlike the primary predictor, the corrected predictor uses:
-
+So unlike the primary predictor, the secondary predictor uses:
 ```math
 x_{\mathrm{prev}} = \frac{K_{\mathrm{prev}}}{S}
-```
-
-```math
 y_{\mathrm{prev}} = \hat{y}_{\mathrm{prev}}
 ```
 
-This is the geometrically natural version of progressive filling.
+This is the geometrically natural version of __"progressive" filling__.
 
-It says:
-
+Clearly, this method follows the flow mentioned below - 
 ```text
 The previous missing option now has a predicted IV.
 Place that predicted IV at its real moneyness location.
@@ -839,62 +911,52 @@ So if the model has:
 observed observed observed missing_1 missing_2
 ```
 
-then after filling `missing_1`, the corrected model for `missing_2` sees:
+then after filling `missing_1`, the secondary model for `missing_2` sees:
 
 ```text
 observed observed observed predicted_missing_1 target_missing_2
 ```
 
-This is why it is called `corrected`: it corrects the primary model's unusual `prediction-as-x` behavior by using the actual strike-derived moneyness coordinate.
+### 4.8.3 Secondary Prediction Model
 
-### 4.8.3 Corrected Prediction Model
-
-Once the corrected training points are collected, prediction again uses:
-
+Once the secondary training points are collected, prediction again uses:
 ```python
 _edge_predict_with_deg_select
 ```
-
-So corrected also selects:
-
+So secondary also selects:
 ```text
 degree in {1,2}
 bandwidth from BANDWIDTH_GRID
 ```
-
 by leave-one-out MSE.
 
-The corrected prediction is:
-
+Thus, the secondary prediction is:
 ```math
-\hat{y}_{\mathrm{corrected}}
+\hat{y}_{\mathrm{secondary}}
 =
 \hat{y}(x_0;d^\star,h^\star)
 ```
 
-This component gives the ensemble a more geometrically consistent version of the progressive edge extrapolation.
+This component gives the ensemble a more geometrically consistent / natural version of the __"progressive"__ edge extrapolation. By implementing both the secondary and the primary, I aimed to create an ensemble with a robust edge filling logic.
+
+![Secondary edge sequence](for_generating_readme/edge_secondary_sequence.png)
 
 ---
 
-## 4.9 Quadratic Edge Predictor
+## 4.9 Nearby Edge Predictor
 
-The quadratic edge predictor is implemented by:
-
+The nearby edge predictor is implemented by:
 ```python
-collect_edge_training_points_quadratic
-predict_edge_quadratic
+collect_edge_training_points_nearby
+predict_edge_nearby
 ```
-
-Despite the name, in the final version this component also uses the same degree-selection helper. So it can select either degree 1 or degree 2. The name is retained because this component came from an earlier local quadratic edge strategy.
+As the name suggests, this method of edge imputing is derived from applying the `secondary` method on a local neighbourhood of the target moneyness. I added this so as to account for edge side option IVs having a slightly sharper smile than the interior IVs.
 
 ### 4.9.1 Local Wing Neighborhood
 
-The quadratic component differs from primary and corrected in how it chooses the observed training points.
-
-Instead of using all observed points on the valid side, it selects a local neighborhood near the edge.
+The nearby component differs from primary and secondary in how it chooses the observed training points. As mentioned before, instead of using all observed points on the valid side, it selects a local neighborhood near the edge.
 
 The number of needed observed points is:
-
 ```python
 base_n = max(MIN_EDGE_LOCAL_NEIGHBORS, len(block_cols))
 ```
@@ -940,65 +1002,47 @@ base = (
     .sort_values("strike")
 )
 ```
+This is done so as to provide a more __"localised"__ structure of the edge part of the smiles (or skews).
+The motivation was simple, `far-away strikes may not describe the wing behavior near the missing edge`.
 
-This gives a more local wing fit.
+It is important to note here that I tried quite a few functions (based on moneyness, number of missing values, regime type, etc.) that chooses the neighbourhood, eventually setting upon the simplest of them all (the one showed above). 
 
-The motivation is simple:
 
-```text
-far-away strikes may not describe the wing behavior near the missing edge
-```
+### 4.9.2 Nearby Progressive Context
 
-So this component focuses only on nearby wing context.
-
-### 4.9.2 Quadratic Progressive Context
-
-The quadratic component also adds previous predictions from the same edge block.
+Since this __"nearby__" component is simillar to the __"secondary"__, it also adds previous predictions from the same edge block.
 
 For each previous missing value:
-
 ```python
-pv = component_value(already_filled, pc, "quadratic")
+pv = component_value(already_filled, pc, "nearby")
 ```
-
 it appends:
-
 ```python
 "x": strike_map[pc] / spot
 "y": float(pv)
 "is_predicted": True
 ```
-
-So the quadratic component uses actual moneyness for previous predictions, just like the corrected component.
-
 Mathematically:
-
 ```math
 x_{\mathrm{prev}} = \frac{K_{\mathrm{prev}}}{S}
-```
-
-```math
 y_{\mathrm{prev}} = \hat{y}_{\mathrm{prev}}
 ```
 
-The difference is that corrected uses all observed valid-side points, while quadratic uses only a local wing neighborhood.
+In summary, the difference is that secondary uses all observed valid-side points, while nearby uses only a local wing neighborhood. This method proved to be useful till a point, and thus I chose to put it in the ensemble.
 
-### 4.9.3 Quadratic Prediction Model
+![Nearby edge sequence](for_generating_readme/edge_nearby_sequence.png)
+
+### 4.9.3 Nearby Prediction Model
 
 After collecting the local wing training set, the prediction again calls:
-
 ```python
 _edge_predict_with_deg_select
 ```
-
 Therefore, this component also searches:
-
 ```math
 d \in \{1,2\}
 ```
-
 and:
-
 ```math
 h
 \in
@@ -1011,217 +1055,85 @@ h
 \right\}
 ```
 
-The final quadratic component prediction is:
-
+Thus, the final nearby component prediction is:
 ```math
-\hat{y}_{\mathrm{quadratic}}
+\hat{y}_{\mathrm{nearby}}
 =
 \hat{y}(x_0;d^\star,h^\star)
 ```
 
-The diagnostic field:
-
-```text
-edge_quadratic_fit_kind
-```
-
-stores whether the selected model behaved like:
-
-```text
-deg1_by_loo
-deg2_by_loo
-```
+For debugging during the contest, there are a lot of diagnostic statements in the code, like `edge_nearby_fit_kind` , which stores whether the selected model behaved like `deg1_by_loo` or `deg2_by_loo`.
 
 ---
 
 ## 4.10 Final Edge Ensemble
 
-The function that combines all edge predictors is:
-
+The python function that combines all edge predictors is:
 ```python
 predict_edge_ensemble
 ```
 
-It first computes:
+It computes:
 
 ```python
 primary_info = predict_edge_primary_local_poly(...)
 primary_pred = primary_info["prediction"]
+secondary_pred, secondary_cols, secondary_info = predict_edge_secondary_local_poly(...)
+nearby_pred, nearby_cols, nearby_info, fit_kind = predict_edge_nearby(...)
 ```
 
-Then:
+These produces the three component predictions:
+1. `primary prediction`
+2. `secondary prediction`
+3. `nearby prediction`
 
-```python
-corrected_pred, corrected_cols, corrected_info = predict_edge_corrected_local_poly(...)
-```
 
-Then:
+Which, the code stores them as:
 
-```python
-quadratic_pred, quad_cols, quad_info, fit_kind = predict_edge_quadratic(...)
-```
-
-These produce three component predictions:
-
-```text
-primary prediction
-corrected prediction
-quadratic prediction
-```
-
-The code stores them as:
-
-```python
+```python314
 components = {
     "primary": safe_iv(primary_pred),
-    "corrected": safe_iv(corrected_pred),
-    "quadratic": safe_iv(quadratic_pred),
+    "secondary": safe_iv(secondary_pred),
+    "nearby": safe_iv(nearby_pred),
 }
 ```
 
 Then it computes the final edge prediction:
-
 ```math
 \hat{y}_{\mathrm{edge}}
 =
-0.72\hat{y}_{\mathrm{primary}}
+0.7\hat{y}_{\mathrm{primary}}
 +
-0.14\hat{y}_{\mathrm{corrected}}
+0.15\hat{y}_{\mathrm{secondary}}
 +
-0.14\hat{y}_{\mathrm{quadratic}}
+0.15\hat{y}_{\mathrm{nearby}}
 ```
 
-In code:
+Which, again, in code is: 
 
 ```python
 pred = (
     EDGE_BLEND_PRIMARY * components["primary"]
-    + EDGE_BLEND_CORRECTED * components["corrected"]
-    + EDGE_BLEND_QUADRATIC * components["quadratic"]
+    + EDGE_BLEND_SECONDARY * components["secondary"]
+    + EDGE_BLEND_NEARBY * components["nearby"]
 )
 ```
 
-where:
+where: `EDGE_BLEND_PRIMARY = 0.7`, `EDGE_BLEND_SECONDARY = 0.15`, `EDGE_BLEND_NEARBY = 0.15`
 
-```python
-EDGE_BLEND_PRIMARY = 0.72
-EDGE_BLEND_CORRECTED = 0.14
-EDGE_BLEND_QUADRATIC = 0.14
-```
 
-The reason for this design is that edge extrapolation is noisy. The primary model is the strongest component, so it receives most of the weight. The corrected and quadratic components are included with smaller weights as stabilizers. They provide alternative geometric views of the same edge problem without overpowering the main predictor.
+The reason for this design is that edge extrapolation is noisy. The primary model is the strongest component, so it receives most of the weight. The secondary and nearby components are included with smaller weights as stabilizers. They provide alternative geometric views of the same edge problem without overpowering the main predictor.
 
-If the ensemble prediction is not finite, the code falls back to the global median IV. In the final full run, this fallback was not needed.
+It is important to note here the following -
+1. The weights here are based on how much improvement in `cv_mse` (mse from a hid-out faked dataset, checked against given values) the method did.
+2. We also note that each of the 3 methods (`primary`, `secondary`, and `nearby`) produces a simillar mse of around `~3×10`<sup>`-5`</sup>. Thus, my ensemble _should_ be robust enough to survive the error calculation of the left-out 70% data on Kaggle. 
+3. To repeat, the weights are based on how confident I am in the method, and are not completely random as well. I had run a grid search over a few choices of the tuple of weights which gave a better leaderboard score but decided to not go with it so as to slightly increase robustness over minute mse gains. Simply put, I chose the weights by trial and error and settling for the best trade-off of the mse and the confidence in the method.
 
----
-
-## 4.11 How Progressive Edge Filling Works in Practice
-
-Suppose the row has this right-edge pattern:
-
-```text
-K1        K2        K3        K4         K5
-observed  observed  observed  missing_1  missing_2
-```
-
-The fill order is:
-
-```text
-missing_1 first
-missing_2 second
-```
-
-For `missing_1`, the edge models use the observed side:
-
-```text
-K1, K2, K3
-```
-
-Then the model predicts:
-
-```text
-missing_1 = predicted value
-```
-
-For `missing_2`, the model can now use:
-
-```text
-K1, K2, K3, predicted_missing_1
-```
-
-So later missing values are not extrapolated from scratch. They use the previously filled values in their edge block.
-
-This is why the script stores component predictions in:
-
-```python
-filled_values_by_row[row_idx][col] = {
-    "final": pred,
-    "primary": components.get("primary", pred),
-    "corrected": components.get("corrected", pred),
-    "quadratic": components.get("quadratic", pred),
-}
-```
-
-Each component receives its own previous prediction. This avoids mixing the internal logic of the primary, corrected, and quadratic components.
-
-For example:
-
-```text
-primary uses previous primary predictions
-corrected uses previous corrected predictions
-quadratic uses previous quadratic predictions
-```
-
-This keeps the progressive chain internally consistent.
+![Edge component blend overlay](for_generating_readme/edge_component_blend_overlay.png)
 
 ---
 
-## 4.12 Final Cell Routing Summary
-
-The function `predict_cell` is the central router.
-
-It first checks:
-
-```python
-edge, edge_reason, _, _, _ = is_edge_missing(...)
-```
-
-If the cell is an edge:
-
-```python
-info = predict_edge_ensemble(...)
-```
-
-If the cell is not an edge:
-
-```python
-info = predict_non_edge_local_poly(...)
-```
-
-So the final logic is:
-
-```text
-if missing cell is interior:
-    use same-row local quadratic WLS
-    optionally blend with PCHIP interpolation
-
-if missing cell is edge:
-    use progressive edge ensemble
-    primary + corrected + quadratic
-    each component selects degree and bandwidth by LOO
-```
-
-This is the final modeling structure used to generate `submission_final.csv`.4
-
-## 5. Progressive Edge Filling
-
-This figure shows the progressive edge idea on a real row from the final submission diagnostics. Gold crosses are still-missing edge cells. Gold diamonds are filled values. The red diamond is the newest value added at that step.
-
-![Progressive edge fill sequence](for_generating_readme/progressive_edge_fill_sequence.png)
-
-The important point is that later wing values get more local context than they would have if the method tried to extrapolate the entire block in one shot.
-
-## 6. Diagnostics
+## 5. Diagnostics
 
 The full final run completed every missing value without a global-median fallback.
 
@@ -1234,54 +1146,30 @@ degree 1 edge selections : 157
 global median fallback   : 0
 ```
 
+The final run outputs behind these diagnostics are [diagnostics_final.csv](submission_files/diagnostics_final.csv) and [cross_section_diagnostics_final.csv](submission_files/cross_section_diagnostics_final.csv).
+
+The first diagnostic figure is a run-level snapshot of the filling process. It separates interior gaps from edge gaps and shows how many cells were handled by each family of model. It also shows which `bw (bandwidth)` was selected how frequently, along with which `deg` was selected how frequently, 
+
 ![Fill diagnostics snapshots](for_generating_readme/fill_diagnostics_snapshots.png)
+
+The next figure breaks down the final model decisions. It shows where the method used the smoother interior interpolation and where it switched into the edge extrapolation method(s). This was necessary so as to validate my theories and the sanity of the code; meaning, this is to be taken as "proof" that results are what we expect from a correct code, and thus the code is atleast what we wanted, even if it is not the correct solution. 
 
 ![Final model decisions](for_generating_readme/final_model_decisions.png)
 
-![Prediction source counts](for_generating_readme/prediction_source_counts.png)
-
-The final filled smiles below show the completed cross-sections. Yellow diamonds are cells that were originally missing and filled by the model.
+The final filled smiles show completed cross-sections after imputation (for coherence, these are the same rows shown at the start of this report). Clearly, as we can see, the model performs well on the showed smiles.
 
 ![Filled smile examples](for_generating_readme/filled_smile_examples.png)
 
-## 7. Synthetic CV Validation
+## 6. Synthetic CV Validation and MC analysis
 
-The repository includes a synthetic CV system under:
+During the competition, to prevent useless submissions on the official kaggle page, I create a synthetic validation system by randomly hiding out some values from the given dataset and testing my code on this synthetic holdout. 
+This is located in the repository in [everything_else/cv_validation_system/](everything_else/cv_validation_system/). I mention this part here because this setup was very essential in ruling out some theories and methods that "could've" worked. It provides a comprehensive review of a lot of the error in the method. This was crucial as I could visually see where the model went wrong and thus clearly pinpoint it out in the code itself, rather than combing the code and dry-running it.
 
-```text
-everything_else/cv_validation_system/
-```
+In this section, I share one of the synthetic CV results ran on [final_submission.py](final_submission.py) file.
 
-The validation procedure:
+PS- the guidelines and the commands to run this cv are mentioned in the respective folder's [README file](everything_else/cv_validation_system/README.md).
 
-1. Start from observed values.
-2. Hide a subset of values.
-3. Run `final_submission.py` on the damaged dataset.
-4. Score only the hidden cells.
-
-I ran:
-
-```bash
-python final_submission.py \
-  --data everything_else/cv_validation_system/cv_split/not_dataset.csv \
-  --out-prefix readme_cv_final \
-  --skip-cv
-```
-
-Then evaluated with:
-
-```bash
-python everything_else/cv_validation_system/evaluate_cv_predictions_with_heatmaps.py \
-  --truth everything_else/cv_validation_system/cv_split/holdout_truth.csv \
-  --pred filled_dataset_readme_cv_final.csv \
-  --base everything_else/cv_validation_system/cv_split/not_dataset.csv \
-  --out-dir for_generating_readme/cv_eval_final_submission \
-  --top-smile-plots 12 \
-  --sample-smile-plots 8
-```
-
-Overall synthetic CV results:
-
+For a randomly selected synthetic hid-out dataset, the model gave the synthetic CV results:
 ```text
 n hidden cells scored : 2621
 MSE                   : 0.0001417534
@@ -1293,88 +1181,132 @@ p95 absolute error    : 0.0181816275
 p99 absolute error    : 0.0615417097
 ```
 
+The full synthetic CV metric table is stored in [metrics_summary.csv](for_generating_readme/cv_eval_final_submission/metrics_summary.csv), with worst/error-level rows available in [error_rows.csv](for_generating_readme/cv_eval_final_submission/error_rows.csv) and [worst_errors.csv](for_generating_readme/cv_eval_final_submission/worst_errors.csv).
+
 The strongest errors are concentrated near the expiry regime, which matches the EDA and the final IV surface.
 
+Below are a few plots that are useful in undestanding model failures as well as model benefits. 
+
 ![Predicted vs actual](for_generating_readme/cv_predicted_vs_actual_theme.png)
-
+#
 ![Absolute error over time](for_generating_readme/cv_abs_error_over_time_theme.png)
-
+#
 ![Absolute error vs moneyness](for_generating_readme/cv_abs_error_vs_moneyness_theme.png)
-
+#
 ![MSE by regime](for_generating_readme/cv_mse_by_regime_theme.png)
-
+#
 ![Binned absolute error heatmap](for_generating_readme/cv_abs_error_heatmap_theme.png)
-
+#
 ![Signed error heatmap](for_generating_readme/cv_signed_error_heatmap_theme.png)
-
+#
 One top-error smile is shown below. It shows whether the miss came from a whole-smile shift, wing movement, or thin local context.
 
 ![Top-error smile example](for_generating_readme/cv_top_error_smile_theme.png)
+#
 
-## 8. What I Tried
+## Monte Carlo synthetic CV robustness
 
-I tried several model families before choosing the final one.
+To test whether the synthetic CV result above was just a lucky holdout, and to test the robustness of the model, and to gain some confidence before setting it as the final submission, I repeated the same synthetic validation idea across `12` independently generated random holdout datasets (all derived from the same given dataset). Each run used the same final submission code, but a different random seed for hiding observed IV cells.
 
+And here are the result of the final Robustness Check - 
+```text
+number of MC runs       : 12
+hidden cells per run    : 2621 to 2621
+mean MSE                : 0.0002965652
+std MSE                 : 0.0001446755
+mean RMSE               : 0.0168143457
+std RMSE                : 0.0038860506
+mean MAE                : 0.0046273639
+mean p95 absolute error : 0.0199111351
+best seed by RMSE       : 71  (0.0121440186)
+worst seed by RMSE      : 11  (0.0258483124)
+```
+
+The Monte Carlo summary CSV is [mc_cv_summary.csv](for_generating_readme/mc_cv_summary.csv), and the regime/option breakdown is [mc_cv_grouped_by_regime_option.csv](for_generating_readme/mc_cv_grouped_by_regime_option.csv).
+
+The picture shows the distribution of the main error statistics across random holdouts. The useful thing here is the width of each distribution. Each error type has a narrow spread means the method is independent of the dataset split (obviously as long as the split is uniformly random across both regimes)
+
+![Monte Carlo metric distributions](for_generating_readme/mc_cv_metric_distributions.png)
+
+The seed trajectory shows the same robustness in a different way. RMSE and MAE move from seed to seed as expected, while staying in the same band instead of exploding for a particular random holdout, again validating the entire method. 
+
+![Monte Carlo seed trajectory](for_generating_readme/mc_cv_seed_trajectory.png)
+
+This regime plot separates the synthetic errors into pre-27 Jan and 27 Jan, and also splits CE from PE. It is consistent with what is expected of predicting IV on expiry day. As realised from earlier, the 27 Jan regime was expected to have higher MSE due to its intrinsic randomness. Nevertheless, I think there can be a few improvements on this model if given a lot more data of same-day expiration IVs, but obviously that was not the scope of this project. 
+
+![Monte Carlo regime robustness](for_generating_readme/mc_cv_regime_robustness.png)
+
+This final plot turns the synthetic CV errors back into a 3D IV object. The horizontal axes are time and strike, the vertical axis is the actual IV level, and the color is the high-tail absolute error seen across the random holdouts. This makes the failure geography visible directly on the IV surface.
+
+![Monte Carlo 3D error heatmap](for_generating_readme/mc_cv_3d_error_heatmap.png)
+
+
+## 7. What I Tried
+
+Its clear I tried several model families before choosing the final one. (a lot more than present in `everything/else`)
+
+Shown below is a comparison table listing a tiny fraction of things I tried (apart from some parameter optimised resubmits). The underlying table is also saved as [strategy_cv_comparison.csv](for_generating_readme/strategy_cv_comparison.csv).
 ![Strategy CV comparison](for_generating_readme/strategy_cv_comparison.png)
 
+At this point, I would like to expand on a few points - 
+1. The first thing I tried was a raw quadratic fit, which I set as a baseline. The related script is [quadratic_fit_iv_moneyness.py](everything_else/strategies_and_results/quadratic_fit_raw/quadratic_fit_iv_moneyness.py). Here I realised one key thing, `the main error source across time was jan 27, and across strikes were missing edge values, especially outer edges of the combined smile. 
+
+2. From here, I got the idea of splitting the missing values and getting the classifier in place. Then, I used a few approaches to handle each and landed with the current one. 
+
+3. I also tried adding a temporal dependency, which showed improvement in MSE on leaderboard, but due to less confidence in the method, I finally decided to not use time in 
 The raw quadratic approach was a useful baseline, but global quadratic wing extrapolation was unstable.
 
-The progressive quadratic edge versions were the first strong structural improvement: edge blocks should be filled from the observed boundary outward.
+4. One more attractive idea I tried to implement was using a CNN or a diffusion model to predict the missing IV. The idea was clear - if I can point approximately where the IV should be, so could a deep learning model? But I was wrong. Nevertheless, I achieved a leaderboard score mse (on 30% missing data) of __4.8x10^-5__, which in my opinion could've been improved further if I had the experience. In any case, I tried to implement the following [paper](https://uwaterloo.ca/computational-mathematics/sites/default/files/uploads/documents/ying_kit_hui_research_paper.pdf) which gave the above mentioned leaderboard mse. The related files are [kaggle_cnn_smile_iv_imputer.ipynb](everything_else/things_tried/kaggle_cnn_smile_iv_imputer.ipynb), [try_cnn.py](everything_else/things_tried/try_cnn.py), [try_cnn_fixed.py](everything_else/things_tried/try_cnn_fixed.py), and [score_based_iv_completion_kaggle.ipynb](everything_else/things_tried/score_based_iv_completion_kaggle.ipynb).
 
-The linear-edge experiments showed that degree selection matters. Sometimes a line is safer than a quadratic at the wing, but forcing every edge to be linear throws away real curvature.
 
-The local-polynomial edge experiments were stronger because they kept the fit local in moneyness and selected smoothing by validation.
+## 8. Directory Structure
 
-The Jan 27 temporal experiments showed why over-specializing to expiry day is risky. Time information helps explain the market, but a global temporal correction can create large tail errors when the smile changes abruptly.
-
-The CNN idea was conceptually attractive because an IV smile is a 1D signal, but the dataset is small and validation/leakage risk is high. The final method stayed transparent, cross-sectional, and easy to diagnose.
-
-The final model is the practical conclusion:
+This section is an appendix for navigating the repository. The main file to run for the final submission is still [final_submission.py](final_submission.py); everything else is either input data, generated output, diagnostics, EDA, validation machinery, or experiments that helped decide what not to submit.
 
 ```text
-use same-row smile structure first
-separate interiors from edges
-choose smoothing by LOO
-blend PCHIP only for safe interior interpolation
-fill edge blocks progressively
-avoid aggressive temporal corrections in the final submission
+.
+├── dataset.csv
+├── final_submission.py
+├── README.md
+├── LICENSE
+├── submission-converter.ipynb
+├── submission_files/
+├── for_generating_readme/
+└── everything_else/
+    ├── cv_validation_system/
+    ├── eda/
+    ├── strategies_and_results/
+    ├── things_tried/
+    ├── monte_carlo_for_try.py/
+    └── was_better_than_submission_but_not_confident/
 ```
 
-## 9. Function Map
+[final_submission.py](final_submission.py) is the actual final method. This is the script that reads the original dataset, fills every missing IV, writes the filled dataset, and generates the final submission output. The README is written around this file.
 
-| Function | Role |
-|---|---|
-| `parse_metadata` | Extracts strike, expiry, and option type from contract names. |
-| `collect_same_row_points` | Builds same-timestamp CE or PE smile points. |
-| `local_poly_wls_pred` | Core local weighted least-squares predictor. |
-| `select_bandwidth_by_loo` | Chooses interior bandwidth by leave-one-out MSE. |
-| `select_bandwidth_and_degree_by_loo` | Chooses edge bandwidth and degree. |
-| `pchip_same_row_pred` | Computes shape-preserving interior interpolation. |
-| `get_edge_blocks` | Finds missing wing blocks at each timestamp. |
-| `predict_non_edge_local_poly` | Runs interior WLS plus PCHIP blend. |
-| `predict_edge_ensemble` | Builds and combines the three edge estimates. |
-| `predict_cell` | Routes each missing cell to the correct engine. |
-| `build_missing_cell_fill_order` | Enforces progressive edge filling order. |
-| `main` | Loads data, fills all cells, writes submission and diagnostics. |
+[dataset.csv](dataset.csv) is the original competition dataset. All paths in the final code are relative to the project directory, so the repository can be moved or cloned without changing absolute file paths.
 
-## 10. Rebuilding Figures
+[submission_files/](submission_files/) stores the final generated outputs. The important file in this folder is the [submission CSV](submission_files/submission_final.csv), while the [filled dataset](submission_files/filled_dataset_final.csv) and diagnostic CSVs are kept so the final run can be inspected instead of treated as a black box.
 
-The README-specific figure generator is:
+[for_generating_readme/](for_generating_readme/) contains scripts, plots, HTML surfaces, Monte Carlo outputs, and image assets used only to build this report. The 3D IV surfaces, missingness plots, CV plots, progressive filling diagrams, and strategy comparison figures shown above are all generated from here. The main scripts are [generate_readme_eda.py](for_generating_readme/generate_readme_eda.py), [generate_edge_component_images.py](for_generating_readme/generate_edge_component_images.py), and [run_monte_carlo_cv.py](for_generating_readme/run_monte_carlo_cv.py). This folder is not required to understand the final algorithm line-by-line, but it is important for reproducing the visual story of the report.
 
-```bash
-python for_generating_readme/generate_readme_eda.py
-```
+[everything_else/eda/](everything_else/eda/) contains exploratory analysis scripts and notebooks. This is where I looked at the original IV surface, missingness, moneyness behavior, time behavior, contract-level movement, and the Jan-27 expiry regime. The main purpose of this folder was to understand the data before choosing a model.
 
-It reads the final filled dataset, diagnostics, original dataset, and synthetic CV outputs. It writes the images and interactive Plotly surfaces into:
+[everything_else/cv_validation_system/](everything_else/cv_validation_system/) contains the synthetic validation setup. It creates artificial holdouts from known IV values using [create_synthetic_cv_dataset.py](everything_else/cv_validation_system/create_synthetic_cv_dataset.py), runs a candidate imputer on the masked dataset, and evaluates the predictions against the hidden truth using [evaluate_cv_predictions_with_heatmaps.py](everything_else/cv_validation_system/evaluate_cv_predictions_with_heatmaps.py). This folder was essential because the public leaderboard alone was not enough to safely choose between methods.
 
-```text
-for_generating_readme/
-```
+[everything_else/things_tried/](everything_else/things_tried/) contains trial scripts and notebooks that were not selected as the final submission. This includes pure cross-section local polynomial attempts, PCHIP variants, temporal Jan-27 variants, underlying-signal experiments, CNN smile-image models, and score-based neural inpainting.
 
-The CV evaluator outputs used by the README live in:
+[everything_else/strategies_and_results/](everything_else/strategies_and_results/) contains older strategy folders with both code and generated result CSVs. These are useful as a record of how the method evolved: raw quadratic fits, progressive linear edge handling, adaptive local polynomial versions, expiry-specific experiments, and edge-case-focused variants.
 
-```text
-for_generating_readme/cv_eval_final_submission/
-```
+[everything_else/was_better_than_submission_but_not_confident/](everything_else/was_better_than_submission_but_not_confident/) contains a method that looked promising but was not selected because I did not have enough confidence in its generalization. This is important because the final choice was not only based on lowest observed score; it was based on robustness, interpretability, and whether the method made sense under the EDA.
 
-So this README is tied to generated artifacts from the actual final submission run, not hand-written summaries.
+[everything_else/monte_carlo_for_try.py/](everything_else/monte_carlo_for_try.py/) contains a Monte Carlo error-analysis script for testing repeated synthetic holdout behavior.
+
+## 9. Future Improvements
+
+The final method is deliberately local and deterministic. That made it more trustworthy for this dataset, but there are still clear directions where it could be improved if more data or more time were available.
+
+1. Add a stronger expiry-day model. The Jan-27 regime is the hardest part of the dataset. A future version could use several expiry-day option chains from different dates, learn the distribution of same-day IV surface shapes, and then apply that prior to the current expiry date.
+
+2. Build a cleaner temporal component. I tried temporal ideas, but I did not finally trust them enough. A better temporal model would need regime-aware validation, strict causality, and a way to avoid overreacting to short-lived IV jumps.
+
+3. Use neural models only with stronger validation. CNNs and score-based inpainting were attractive, but the dataset was too small for them to be the safest final choice. With more historical option-chain surfaces, a small masked model could become useful as an auxiliary model rather than the main imputer.

@@ -43,7 +43,7 @@ hidden cells. Non-edge logic remains exactly the same as try.py.
 
 Run
 ---
-    python try_progressive_linear_edge_v3_bias_eda.py --data cv_validation_system/dataset.csv
+    python try_progressive_linear_edge_v3_bias_eda.py --data dataset.csv
 
 Outputs
 -------
@@ -67,7 +67,7 @@ from tqdm import tqdm
 # ---------------------------------------------------------------------
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV = 1e-6

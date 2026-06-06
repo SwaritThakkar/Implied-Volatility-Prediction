@@ -1,0 +1,15 @@
+{
+  "input": "/Users/swaritthakkar/Documents/IIT R/Implied-Volatility-Prediction/dataset.csv",
+  "seed": 47,
+  "holdout_frac": 0.12,
+  "min_remaining_per_row_type": 6,
+  "min_holdout_27jan": 350,
+  "n_moneyness_buckets": 5,
+  "n_original_rows": 975,
+  "n_option_cols": 28,
+  "n_observed_candidates": 21840,
+  "n_hidden": 2621,
+  "n_hidden_pre27": 2097,
+  "n_hidden_jan27": 524,
+  "note": "Original missing cells are not part of validation. Only holdout_truth.csv cells are scored."
+}

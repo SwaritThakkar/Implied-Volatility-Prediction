@@ -23,7 +23,7 @@ New validated-style interior correction:
     - Edges are not touched by this correction.
 
 Run:
-    python try_final_pchip_underlying_signal.py --data cv_validation_system/dataset.csv
+    python try_final_pchip_underlying_signal.py --data dataset.csv
 
 Outputs:
     filled_dataset_try_final_pchip_underlying_signal.csv
@@ -52,7 +52,7 @@ except Exception:
 # ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV = 1e-6

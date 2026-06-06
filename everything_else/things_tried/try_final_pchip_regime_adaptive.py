@@ -27,7 +27,7 @@ This implements the validated combination from Claude's test:
     improvement:        +6.34% on the interior validation setup
 
 Run:
-    python try_final_pchip_regime_adaptive.py --data cv_validation_system/dataset.csv
+    python try_final_pchip_regime_adaptive.py --data dataset.csv
 
 Outputs:
     filled_dataset_try_final_pchip_regime_adaptive.csv
@@ -55,7 +55,7 @@ except Exception:
 # ─────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_PATH = Path(
-    "/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv"
+    "dataset.csv"
 )
 
 EPS_IV = 1e-6

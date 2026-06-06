@@ -12,7 +12,6 @@ except Exception:
     PchipInterpolator = None
 
 
-
 DEFAULT_DATA_PATH = Path(
     "dataset.csv"
 )
@@ -22,20 +21,19 @@ SEPARATOR = "||"
 
 BANDWIDTH_GRID     = np.array([5e-5, 7e-5, 1e-4, 1.5e-4, 2e-4], dtype=float)
 EDGE_LOCAL_POLY_BW = 2e-4
-LOCAL_POLY_DEGREE  = 2
+LOCAL_POLY_DEGREE  = 1
 
-EDGE_BLEND_PRIMARY = 0.72
-EDGE_BLEND_CORRECTED = 0.14
-EDGE_BLEND_QUADRATIC = 0.14
+EDGE_BLEND_PRIMARY   = 0.7
+EDGE_BLEND_SECONDARY = 0.15
+EDGE_BLEND_NEARBY    = 0.15
 MIN_EDGE_LOCAL_NEIGHBORS = 3
 
-PCHIP_INTERIOR_WEIGHT = 0.25
-MIN_PCHIP_POINTS = 4
-
+PCHIP_INTERIOR_WEIGHT = 0.5
+MIN_PCHIP_POINTS = 2
 
 
 CFG_DATA       = str(DEFAULT_DATA_PATH)
-CFG_OUT_PREFIX = "final"
+CFG_OUT_PREFIX = "test"
 
 def parse_args():
     import types, sys
@@ -46,7 +44,6 @@ def parse_args():
     parser.add_argument("--out-prefix", type=str, default=CFG_OUT_PREFIX)
     parser.add_argument("--skip-cv", action="store_true", help="Skip internal CV validation.")
     return parser.parse_args()
-
 
 
 def parse_metadata(df):
@@ -122,7 +119,6 @@ def eval_quadratic(coeff, x):
     if coeff is None:
         return np.nan
     return safe_iv(float(np.polyval(coeff, x)))
-
 
 
 def local_poly_wls_pred(x_obs, y_obs, x_target, bandwidth, degree=LOCAL_POLY_DEGREE):
@@ -236,7 +232,6 @@ def pchip_same_row_pred(x_obs, y_obs, x_target):
     return safe_iv(p) if np.isfinite(p) else np.nan
 
 
-
 def collect_same_row_points(row, opt_type, cols_by_type, strike_map):
     spot = row["underlying_price"]
     if pd.isna(spot) or spot <= 0:
@@ -283,7 +278,6 @@ def is_edge_missing(row, target_col, opt_type, cols_by_type, strike_map):
     if target_col in same_miss and len(same_obs) == 0:
         return True, "edge_no_observed_same_side", "all_missing", list(state["column"]), 0
     return False, "not_edge", "", [], np.nan
-
 
 
 def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
@@ -336,7 +330,6 @@ def predict_non_edge_local_poly(df, row_idx, target_col, opt_type,
             "pchip_prediction": pchip_pred if np.isfinite(pchip_pred) else np.nan}
 
 
-
 def collect_edge_training_points_primary(row, target_col, opt_type, cols_by_type,
                                         strike_map, already_filled):
     spot = row["underlying_price"]
@@ -374,7 +367,7 @@ def collect_edge_training_points_primary(row, target_col, opt_type, cols_by_type
             continue
         pv = component_value(already_filled, pc, "primary")
         if np.isfinite(pv):
-            x_t.append(float(pv))
+            x_t.append(float(0.0))
             y_t.append(float(pv))
             used.append(f"{pc}*as_xy")
     return (np.asarray(x_t, float), np.asarray(y_t, float), used,
@@ -382,7 +375,7 @@ def collect_edge_training_points_primary(row, target_col, opt_type, cols_by_type
              "edge_position_in_block": position})
 
 
-def collect_edge_training_points_corrected(row, target_col, opt_type, cols_by_type,
+def collect_edge_training_points_secondary(row, target_col, opt_type, cols_by_type,
                                             strike_map, already_filled):
     spot = row["underlying_price"]
     if pd.isna(spot) or spot <= 0:
@@ -411,7 +404,7 @@ def collect_edge_training_points_corrected(row, target_col, opt_type, cols_by_ty
     obs_pts = len(recs)
     prev = block_cols[:int(position)] if np.isfinite(position) else []
     for pc in prev:
-        pv = component_value(already_filled, pc, "corrected")
+        pv = component_value(already_filled, pc, "secondary")
         if np.isfinite(pv):
             recs.append({"column": pc, "strike": strike_map[pc],
                          "x": strike_map[pc]/spot, "y": float(pv), "is_predicted": True})
@@ -427,7 +420,7 @@ def collect_edge_training_points_corrected(row, target_col, opt_type, cols_by_ty
              "edge_position_in_block": position, "edge_observed_side_points": obs_pts})
 
 
-def collect_edge_training_points_quadratic(row, target_col, opt_type, cols_by_type,
+def collect_edge_training_points_nearby(row, target_col, opt_type, cols_by_type,
                                             strike_map, already_filled):
     spot = row["underlying_price"]
     if pd.isna(spot) or spot <= 0:
@@ -464,7 +457,7 @@ def collect_edge_training_points_quadratic(row, target_col, opt_type, cols_by_ty
     recs = base.to_dict("records")
     prev = block_cols[:int(position)] if np.isfinite(position) else []
     for pc in prev:
-        pv = component_value(already_filled, pc, "quadratic")
+        pv = component_value(already_filled, pc, "nearby")
         if np.isfinite(pv):
             recs.append({"column": pc, "strike": strike_map[pc],
                          "x": strike_map[pc]/spot, "y": float(pv), "is_predicted": True})
@@ -478,7 +471,6 @@ def collect_edge_training_points_quadratic(row, target_col, opt_type, cols_by_ty
     return (train["x"].to_numpy(float), train["y"].to_numpy(float), used,
             {"edge_side": side, "edge_block_size": len(block_cols),
              "edge_position_in_block": position, "edge_base_observed_needed": base_n})
-
 
 
 def _edge_predict_with_deg_select(x_obs, y_obs, x_target, global_median_iv):
@@ -526,7 +518,7 @@ def predict_edge_primary_local_poly(df, row_idx, target_col, opt_type,
     pred, bw, deg, loo_mse = _edge_predict_with_deg_select(x_obs, y_obs, x_target, global_median_iv)
 
     return {"prediction": pred,
-            "source": "edge_primary_linear_or_quad_by_loo",
+            "source": "edge_primary_linear_or_nearby_by_loo",
             "selected_model": f"edge_primary_deg{deg}_bw{bw:.0e}",
             "bandwidth": bw, "loo_mse": loo_mse,
             "n_train": len(y_obs), "used_cols": used,
@@ -535,11 +527,11 @@ def predict_edge_primary_local_poly(df, row_idx, target_col, opt_type,
             **edge_info}
 
 
-def predict_edge_corrected_local_poly(df, row_idx, target_col, opt_type,
-                                       cols_by_type, strike_map, global_median_iv, already_filled):
+def predict_edge_secondary_local_poly(df, row_idx, target_col, opt_type,
+                                    cols_by_type, strike_map, global_median_iv, already_filled):
     row  = df.loc[row_idx]
     spot = row["underlying_price"]
-    x_obs, y_obs, used, edge_info = collect_edge_training_points_corrected(
+    x_obs, y_obs, used, edge_info = collect_edge_training_points_secondary(
         row, target_col, opt_type, cols_by_type, strike_map, already_filled)
 
     if pd.isna(spot) or spot <= 0 or len(y_obs) == 0:
@@ -550,11 +542,11 @@ def predict_edge_corrected_local_poly(df, row_idx, target_col, opt_type,
     return pred, used, edge_info
 
 
-def predict_edge_quadratic(df, row_idx, target_col, opt_type,
+def predict_edge_nearby(df, row_idx, target_col, opt_type,
                             cols_by_type, strike_map, global_median_iv, already_filled):
     row  = df.loc[row_idx]
     spot = row["underlying_price"]
-    x_obs, y_obs, used, edge_info = collect_edge_training_points_quadratic(
+    x_obs, y_obs, used, edge_info = collect_edge_training_points_nearby(
         row, target_col, opt_type, cols_by_type, strike_map, already_filled)
 
     if pd.isna(spot) or spot <= 0 or len(y_obs) == 0:
@@ -572,22 +564,22 @@ def predict_edge_ensemble(df, row_idx, target_col, opt_type,
         cols_by_type, strike_map, global_median_iv, already_filled)
     primary_pred = primary_info["prediction"]
 
-    corrected_pred, corrected_cols, corrected_info = predict_edge_corrected_local_poly(
+    secondary_pred, secondary_cols, secondary_info = predict_edge_secondary_local_poly(
         df, row_idx, target_col, opt_type,
         cols_by_type, strike_map, global_median_iv, already_filled)
 
-    quadratic_pred, quad_cols, quad_info, fit_kind = predict_edge_quadratic(
+    nearby_pred, nearby_cols, nearby_info, fit_kind = predict_edge_nearby(
         df, row_idx, target_col, opt_type,
         cols_by_type, strike_map, global_median_iv, already_filled)
 
     components = {
-        "primary":    safe_iv(primary_pred),
-        "corrected": safe_iv(corrected_pred),
-        "quadratic": safe_iv(quadratic_pred),
+        "primary": safe_iv(primary_pred),
+        "secondary": safe_iv(secondary_pred),
+        "nearby": safe_iv(nearby_pred),
     }
-    pred = (EDGE_BLEND_PRIMARY    * components["primary"] +
-            EDGE_BLEND_CORRECTED * components["corrected"] +
-            EDGE_BLEND_QUADRATIC * components["quadratic"])
+    pred = (EDGE_BLEND_PRIMARY * components["primary"] +
+            EDGE_BLEND_SECONDARY * components["secondary"] +
+            EDGE_BLEND_NEARBY * components["nearby"])
 
     if not np.isfinite(pred):
         pred = global_median_iv
@@ -600,12 +592,11 @@ def predict_edge_ensemble(df, row_idx, target_col, opt_type,
             "source": "edge_blended_deg_selected",
             "selected_model": selected_model,
             "component_predictions": components,
-            "corrected_used_cols": corrected_cols,
-            "quadratic_used_cols": quad_cols,
-            "quadratic_fit_kind": fit_kind,
-            "edge_observed_side_points": corrected_info.get("edge_observed_side_points", np.nan),
-            "edge_base_observed_needed": quad_info.get("edge_base_observed_needed", np.nan)}
-
+            "secondary_used_cols": secondary_cols,
+            "nearby_used_cols": nearby_cols,
+            "nearby_fit_kind": fit_kind,
+            "edge_observed_side_points": secondary_info.get("edge_observed_side_points", np.nan),
+            "edge_base_observed_needed": nearby_info.get("edge_base_observed_needed", np.nan)}
 
 
 def predict_cell(df, row_idx, target_col, opt_type, cols_by_type,
@@ -642,7 +633,6 @@ def build_missing_cell_fill_order(df, cols_by_type, strike_map):
             for col in ordered:
                 missing_cells.append((row_idx, col))
     return missing_cells
-
 
 
 def run_cv_validation(df, option_cols, cols_by_type, strike_map, type_map,
@@ -687,7 +677,6 @@ def run_cv_validation(df, option_cols, cols_by_type, strike_map, type_map,
             print(f"  [{label:10s}] MSE : {sub.sq_err.mean():.8f}  (n={len(sub)})")
     print(f"{'-'*55}\n")
     return df_r
-
 
 
 def main():
@@ -755,8 +744,8 @@ def main():
         filled_values_by_row[row_idx][col] = {
             "final": pred,
             "primary": components.get("primary", pred),
-            "corrected": components.get("corrected", pred),
-            "quadratic": components.get("quadratic", pred),
+            "secondary": components.get("secondary", pred),
+            "nearby": components.get("nearby", pred),
         }
         diag["filled"] += 1
         if info.get("pchip_used", False):
@@ -784,11 +773,11 @@ def main():
             "n_train": info["n_train"],
             "used_cols": "|".join(map(str, info["used_cols"])),
             "edge_primary_prediction": info.get("component_predictions", {}).get("primary", np.nan),
-            "edge_corrected_prediction": info.get("component_predictions", {}).get("corrected", np.nan),
-            "edge_quadratic_prediction": info.get("component_predictions", {}).get("quadratic", np.nan),
-            "edge_corrected_used_cols": "|".join(map(str, info.get("corrected_used_cols", []))),
-            "edge_quadratic_used_cols": "|".join(map(str, info.get("quadratic_used_cols", []))),
-            "edge_quadratic_fit_kind": info.get("quadratic_fit_kind", np.nan),
+            "edge_secondary_prediction": info.get("component_predictions", {}).get("secondary", np.nan),
+            "edge_nearby_prediction": info.get("component_predictions", {}).get("nearby", np.nan),
+            "edge_secondary_used_cols": "|".join(map(str, info.get("secondary_used_cols", []))),
+            "edge_nearby_used_cols": "|".join(map(str, info.get("nearby_used_cols", []))),
+            "edge_nearby_fit_kind": info.get("nearby_fit_kind", np.nan),
             "edge_side": info.get("edge_side", ""),
             "edge_block_size": info.get("edge_block_size", np.nan),
             "edge_position_in_block": info.get("edge_position_in_block", np.nan),

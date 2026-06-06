@@ -52,7 +52,7 @@ import pandas as pd
 from tqdm import tqdm
 
 # ─────────────────────────────────────────────────────────────────────────────
-DEFAULT_DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv")
+DEFAULT_DATA_PATH = Path("dataset.csv")
 EPS_IV    = 1e-6
 SEPARATOR = "||"
 MIN_EDGE_LOCAL_NEIGHBORS = 3

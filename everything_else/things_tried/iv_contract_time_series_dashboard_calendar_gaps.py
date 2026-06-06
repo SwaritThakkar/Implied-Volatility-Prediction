@@ -37,9 +37,9 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
 
-DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv")
+DATA_PATH = Path("dataset.csv")
 # Example absolute path:
-# DATA_PATH = Path("/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/what_worked/dataset.csv")
+# DATA_PATH = Path("dataset.csv")
 
 BASE_STEP_MINUTES = 5
 

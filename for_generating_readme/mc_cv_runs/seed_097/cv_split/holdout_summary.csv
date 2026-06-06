@@ -1,0 +1,15 @@
+regime,option_type,moneyness_bucket,n_hidden
+jan27,CE,3,71
+jan27,CE,4,194
+jan27,PE,0,19
+jan27,PE,1,103
+jan27,PE,2,101
+jan27,PE,3,36
+pre27,CE,1,25
+pre27,CE,2,235
+pre27,CE,3,402
+pre27,CE,4,390
+pre27,PE,0,448
+pre27,PE,1,395
+pre27,PE,2,186
+pre27,PE,3,16

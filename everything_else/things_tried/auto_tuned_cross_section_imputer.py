@@ -95,7 +95,7 @@ DEFAULT_RANDOM_SEED = 42
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Auto-tune and run pure cross-section IV imputer.")
-    parser.add_argument("--data", type=str, default="/Users/swaritthakkar/Documents/IIT R/Second Sem/finclub-open-project-26/cv_validation_system/dataset.csv", help="Path to dataset.csv.")
+    parser.add_argument("--data", type=str, default="dataset.csv", help="Path to dataset.csv.")
     parser.add_argument("--out-dir", type=str, default="auto_tuned_results", help="Output directory.")
     parser.add_argument("--holdout-frac", type=float, default=0.12, help="Synthetic validation holdout fraction.")
     parser.add_argument("--seed", type=int, default=DEFAULT_RANDOM_SEED)
