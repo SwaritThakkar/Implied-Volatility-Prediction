@@ -2,7 +2,7 @@
 ## This is not the Project Report, for the same, refer to [project_report.md](<project_report.md>).
 This repository contains the final submission code and supporting analysis for IITR Finclub Open Projects 2026 PS-2. The task is to reconstruct missing implied-volatility values across the Nifty50 options chain.
 
-The main file is [final_submission.py](</Users/swaritthakkar/Documents/IIT R/Implied-Volatility-Prediction/final_submission.py>). It reads [dataset.csv](</Users/swaritthakkar/Documents/IIT R/Implied-Volatility-Prediction/dataset.csv>), fills the missing option IV cells, and writes a Kaggle-style submission CSV.
+The main file is [final_submission.py](final_submission.py). It reads [dataset.csv](dataset.csv), fills the missing option IV cells, and writes a Kaggle-style submission CSV.
 
 For the detailed modeling explanation, EDA, diagrams, and validation discussion, read [project_report.md](<project_report.md>).
 
